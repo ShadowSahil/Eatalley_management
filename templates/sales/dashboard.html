@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Sales{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Sales</h1><div class="sub">From Petpooja{% if last_upload %} · last upload {{ last_upload.created_at|date:"d M, H:i" }} ({{ last_upload.start_date|date:"d M" }}{% if last_upload.end_date != last_upload.start_date %} – {{ last_upload.end_date|date:"d M" }}{% endif %}){% endif %}</div></div>
+  <a class="btn btn-primary" href="{% url 'sales:upload' %}">Upload Petpooja Excel</a>
+</div>
+
+{% include "partials/period.html" %}
+
+{% if not s.has_orders and not s.has_items %}
+<div class="card"><p class="empty">No sales uploaded for {{ period.label }}.<br><br><a class="btn btn-primary" href="{% url 'sales:upload' %}">Upload a Petpooja export</a></p></div>
+{% else %}
+
+<div class="stats">
+  {% if s.has_orders %}
+  <div class="stat hero"><div class="label">Total sales</div><div class="value">{{ s.total|inr }}</div><div class="hint">incl. GST · {{ s.orders|num }} orders</div></div>
+  <div class="stat"><div class="label">Net sales (excl. GST)</div><div class="value">{{ s.net_revenue|inr }}</div><div class="hint">GST {{ s.tax|inr }}</div></div>
+  <div class="stat"><div class="label">Average order</div><div class="value">{{ s.avg_order|inr }}</div>{% if period.days > 1 %}<div class="hint">{{ s.days_with_sales }} trading day{{ s.days_with_sales|pluralize }}</div>{% endif %}</div>
+  <div class="stat"><div class="label">Discounts given</div><div class="value">{{ s.discount|inr }}</div><div class="hint">{{ s.discounted_orders }} orders · {{ s.discount|pct:s.gross }} of gross</div></div>
+  {% if s.cancelled_count %}<div class="stat"><div class="label">Cancelled</div><div class="value">{{ s.cancelled_count }}</div><div class="hint">worth {{ s.cancelled_value|inr }}</div></div>{% endif %}
+  {% else %}
+  <div class="stat hero"><div class="label">Item sales</div><div class="value">{{ s.item_amount|inr }}</div><div class="hint">from item-wise report · {{ s.item_qty|qty }} items sold</div></div>
+  {% endif %}
+</div>
+
+{% if not period.is_single_day %}
+<div class="card">
+  <div class="card-head"><h2>Net sales over time</h2><span class="muted">₹ excl. GST, per {% if period.kind == "fy" %}month{% elif period.kind == "quarter" %}week{% else %}day{% endif %}</span></div>
+  <div class="chart-box"><canvas id="trend" role="img" aria-label="Net sales over time"></canvas></div>
+</div>
+{% endif %}
+
+{% if s.has_orders %}
+<div class="grid grid-3">
+  <div class="card">
+    <h2>Mode of payment</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mode</th><th class="num">Orders</th><th class="num">Amount</th><th>Share</th></tr></thead>
+      <tbody>{% for r in s.by_payment %}<tr><td>{{ r.name }}</td><td class="num">{{ r.orders }}</td><td class="num">{{ r.amount|inr }}</td><td>{% include "partials/share.html" with value=r.amount total=s.total %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <h2>Order type</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Type</th><th class="num">Orders</th><th class="num">Amount</th><th>Share</th></tr></thead>
+      <tbody>{% for r in s.by_order_type %}<tr><td>{{ r.name }}</td><td class="num">{{ r.orders }}</td><td class="num">{{ r.amount|inr }}</td><td>{% include "partials/share.html" with value=r.amount total=s.total %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <h2>Sales breakdown</h2>
+    <table class="statement">
+      <tbody>
+        <tr><td>Gross (item value)</td><td class="num">{{ s.gross|inr:2 }}</td></tr>
+        <tr><td>− Discounts</td><td class="num neg">{{ s.discount|inr:2 }}</td></tr>
+        <tr><td>+ Delivery charges</td><td class="num">{{ s.delivery|inr:2 }}</td></tr>
+        <tr><td>+ Container / packing</td><td class="num">{{ s.container|inr:2 }}</td></tr>
+        <tr><td>+ GST</td><td class="num">{{ s.tax|inr:2 }}</td></tr>
+        <tr><td>± Round-off, paid more / less than bill</td><td class="num">{{ s.adjustment|inr:2 }}</td></tr>
+        <tr class="total"><td>Total collected</td><td class="num">{{ s.total|inr:2 }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% if s.by_source|length > 1 %}
+<div class="card">
+  <h2>By channel / area</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Channel</th><th class="num">Orders</th><th class="num">Amount</th><th>Share</th></tr></thead>
+    <tbody>{% for r in s.by_source %}<tr><td>{{ r.name }}</td><td class="num">{{ r.orders }}</td><td class="num">{{ r.amount|inr }}</td><td>{% include "partials/share.html" with value=r.amount total=s.total %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><h2>Item-wise sales</h2>{% if s.items|length > 15 %}{% if show_all_items %}<a href="{% query top='' %}">Show top 15</a>{% else %}<a href="{% query top=0 %}">Show all {{ s.items|length }}</a>{% endif %}{% endif %}</div>
+    {% if s.has_items %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Amount</th><th>Share</th></tr></thead>
+      <tbody>{% for r in top_items %}<tr><td>{{ r.item_name }}{% if r.category %}<div class="meta">{{ r.category }}</div>{% endif %}</td><td class="num">{{ r.qty|qty }}</td><td class="num">{{ r.amount|inr }}</td><td>{% include "partials/share.html" with value=r.amount total=s.item_amount %}</td></tr>{% endfor %}</tbody>
+      <tfoot><tr><td>All items</td><td class="num">{{ s.item_qty|qty }}</td><td class="num">{{ s.item_amount|inr }}</td><td></td></tr></tfoot>
+    </table></div>
+    {% else %}
+    <p class="empty">Upload Petpooja's <strong>Item wise report</strong> to see which items sell best.</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>By category</h2>
+    {% if s.categories %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Category</th><th class="num">Qty</th><th class="num">Amount</th><th>Share</th></tr></thead>
+      <tbody>{% for r in s.categories %}<tr><td>{{ r.name }}</td><td class="num">{{ r.qty|qty }}</td><td class="num">{{ r.amount|inr }}</td><td>{% include "partials/share.html" with value=r.amount total=s.item_amount %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<p class="empty">—</p>{% endif %}
+  </div>
+</div>
+{% endif %}
+{{ chart|json_script:"trend-data" }}
+{% endblock %}
+{% block scripts %}{% if not period.is_single_day %}<script src="{% static 'vendor/chart.umd.min.js' %}"></script><script>Eat.bar("trend", "trend-data");</script>{% endif %}{% endblock %}

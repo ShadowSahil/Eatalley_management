@@ -1,0 +1,20 @@
+{# Period dropdown shared by Sales, Expense history, Inventory and P&L #}
+<form class="period" method="get" data-period>
+  {% for k, v in request.GET.items %}{% if k not in "view,d,start,end" %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+  <select name="view" aria-label="View">
+    {% for key, label in view_choices %}<option value="{{ key }}" {% if period.kind == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  {% if period.kind == "custom" %}
+    <input type="date" name="start" value="{{ period.start|date:'Y-m-d' }}" aria-label="From">
+    <span class="muted">to</span>
+    <input type="date" name="end" value="{{ period.end|date:'Y-m-d' }}" aria-label="To">
+    <button class="btn btn-sm" type="submit">Show</button>
+  {% else %}
+    {% if period.prev_anchor %}<a class="btn arrow" href="{% query d=period.prev_anchor %}" aria-label="Previous">‹</a>{% endif %}
+    <span class="label">{{ period.label }}</span>
+    {% if period.next_anchor %}<a class="btn arrow" href="{% query d=period.next_anchor %}" aria-label="Next">›</a>{% endif %}
+    <input type="date" name="d" value="{{ period.anchor|date:'Y-m-d' }}" aria-label="Jump to date">
+  {% endif %}
+  <span class="spacer"></span>
+  {% block period_extra %}{{ period_extra|default:"" }}{% endblock %}
+</form>

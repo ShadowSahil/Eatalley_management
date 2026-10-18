@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>{{ title }}</h1></div>
+<div class="card" style="max-width:760px">
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% include "partials/fields.html" %}
+    {% if meta %}<p class="muted">{{ meta }}</p>{% endif %}
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">{{ submit|default:"Save" }}</button>
+      {% if back_url %}<a class="btn" href="{{ back_url }}">Cancel</a>{% elif back %}<a class="btn" href="{% url back %}">Cancel</a>{% endif %}
+    </div>
+  </form>
+  {% if delete_url %}
+  <form method="post" action="{{ delete_url }}" data-confirm="Delete this permanently?" style="margin-top:18px">
+    {% csrf_token %}<button class="btn btn-sm btn-danger" type="submit">Delete</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

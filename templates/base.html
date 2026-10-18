@@ -1,0 +1,54 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#b8400e">
+  <title>{% block title %}Eatalley{% endblock %} · Eatalley</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍕</text></svg>">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+{% if user.is_authenticated %}
+{% with section=request.resolver_match.namespace url_name=request.resolver_match.url_name %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="logo" href="{% url 'home' %}">Eat<span>alley</span></a>
+    <nav class="nav">
+      <a href="{% url 'expenses:entry' %}" class="{% if section == 'expenses' and url_name == 'entry' %}active{% endif %}">Daily expense</a>
+      <a href="{% url 'sales:dashboard' %}" class="{% if section == 'sales' %}active{% endif %}">Sales</a>
+      <a href="{% url 'inventory:list' %}" class="{% if section == 'inventory' %}active{% endif %}">Inventory</a>
+      <a href="{% url 'reports:pnl' %}" class="{% if section == 'reports' %}active{% endif %}">P&amp;L</a>
+      <a href="{% url 'payroll:index' %}" class="{% if section == 'payroll' %}active{% endif %}">Staff</a>
+    </nav>
+    <details class="more">
+      <summary>More ▾</summary>
+      <div class="menu">
+        <div class="who">Signed in as {{ user.get_full_name|default:user.username }}</div>
+        <a href="{% url 'expenses:list' %}">Expense history</a>
+        <a href="{% url 'expenses:items' %}">Expense items</a>
+        <a href="{% url 'sales:upload' %}">Upload Petpooja sales</a>
+        <a href="{% url 'inventory:vendors' %}">Vendors</a>
+        <a href="{% url 'opening:index' %}">Opening costs</a>
+        <a href="{% url 'reports:paid_by' %}">Who paid</a>
+        <a href="{% url 'team' %}">Team logins</a>
+        <a href="{% url 'admin:index' %}">Admin (all data)</a>
+        <hr>
+        <a href="{% url 'password_change' %}">Change my password</a>
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Log out</button></form>
+      </div>
+    </details>
+  </div>
+</header>
+{% endwith %}
+{% endif %}
+<main class="wrap">
+  {% if messages %}
+  <ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+<script src="{% static 'js/app.js' %}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

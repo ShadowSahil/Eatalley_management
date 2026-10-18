@@ -1,0 +1,44 @@
+<div class="erow{% if row.error %} has-error{% endif %}" data-row>
+  <div class="c-item">
+    <label>Item</label>
+    <select name="item" data-item>
+      <option value="">Choose item…</option>
+      {% for it in items %}
+      <option value="{{ it.pk }}" data-unit="{{ it.unit }}" data-rate="{{ it.last_rate|default:'' }}" {% if row.item == it.pk|stringformat:"s" %}selected{% endif %}>{{ it.name }}</option>
+      {% endfor %}
+      <option value="__new__" {% if row.item == "__new__" %}selected{% endif %}>+ New item (not in list)…</option>
+    </select>
+    <div class="hint" data-rate-hint></div>
+  </div>
+  <div class="c-qty">
+    <label>Quantity</label>
+    <div class="qty-wrap"><input name="qty" inputmode="decimal" placeholder="0" value="{{ row.qty|default:'' }}" data-qty><span class="unit" data-unit-label></span></div>
+  </div>
+  <div class="c-amount">
+    <label>Amount ₹</label>
+    <input name="amount" inputmode="decimal" placeholder="0" value="{{ row.amount|default:'' }}" data-amount>
+  </div>
+  <div class="c-mode">
+    <label>Mode</label>
+    <select name="mode">
+      {% for v, l in modes %}<option value="{{ v }}" {% if row.mode == v or not row and v == "cash" %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="c-payer">
+    <label>Paid by</label>
+    <select name="paid_by">
+      {% for p in payers %}<option value="{{ p.pk }}" {% if row.paid_by == p.pk|stringformat:"s" or not row and default_payer == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="c-note">
+    <label>Note</label>
+    <input name="note" placeholder="optional" value="{{ row.note|default:'' }}">
+  </div>
+  <button type="button" class="btn remove" aria-label="Remove row" data-remove>×</button>
+  <div class="new-item" data-new {% if row.item != "__new__" %}hidden{% endif %}>
+    <div><label>New item name</label><input name="new_name" value="{{ row.new_name|default:'' }}" placeholder="e.g. Ice cubes"></div>
+    <div><label>Unit</label><select name="new_unit">{% for v, l in units %}<option value="{{ v }}" {% if row.new_unit == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div><label>Category</label><select name="new_category">{% for v, l in categories %}<option value="{{ v }}" {% if row.new_category == v or not row.new_category and v == "other" %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  </div>
+  {% if row.error %}<div class="err">{{ row.error }}</div>{% endif %}
+</div>

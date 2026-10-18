@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Expense history{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Expense history</h1><div class="sub">Daily running expenses (milk, cold drinks, coconut water…)</div></div>
+  <div class="actions">
+    <a class="btn" href="{% query format='csv' %}">Download CSV</a>
+    <a class="btn btn-primary" href="{% url 'expenses:entry' %}">+ Add expense</a>
+  </div>
+</div>
+
+{% include "partials/period.html" %}
+
+<form method="get" class="period" style="margin-top:-8px">
+  {% for k, v in request.GET.items %}{% if k != "category" and k != "item" and k != "paid_by" %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+  <select name="category" data-autosubmit aria-label="Category">
+    <option value="">All categories</option>
+    {% for v, l in categories %}<option value="{{ v }}" {% if category == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+  </select>
+  <select name="item" data-autosubmit aria-label="Item">
+    <option value="">All items</option>
+    {% for it in all_items %}<option value="{{ it.pk }}" {% if item_id == it.pk|stringformat:"s" %}selected{% endif %}>{{ it.name }}</option>{% endfor %}
+  </select>
+  <select name="paid_by" data-autosubmit aria-label="Paid by">
+    <option value="">Paid by anyone</option>
+    {% for p in payers %}<option value="{{ p.pk }}" {% if payer_id == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+  </select>
+  {% if category or item_id or payer_id %}<a class="btn btn-sm" href="{% query category='' item='' paid_by='' %}">Clear filters</a>{% endif %}
+</form>
+
+<div class="stats">
+  <div class="stat hero"><div class="label">Total spent</div><div class="value">{{ total|inr }}</div><div class="hint">{{ entry_count }} entries</div></div>
+  <div class="stat"><div class="label">Average per day</div><div class="value">{{ per_day|inr }}</div><div class="hint">over {{ period.days }} day{{ period.days|pluralize }}</div></div>
+  {% for m in by_mode|slice:":2" %}
+  <div class="stat"><div class="label">{{ m.name }}</div><div class="value">{{ m.amount|inr }}</div><div class="hint">{{ m.amount|pct:total }} of total</div></div>
+  {% endfor %}
+</div>
+
+{% if not period.is_single_day %}
+<div class="card">
+  <div class="card-head"><h2>Spend over time</h2><span class="muted">₹ per {% if period.kind == "fy" %}month{% elif period.kind == "quarter" %}week{% else %}day{% endif %}</span></div>
+  <div class="chart-box"><canvas id="trend" role="img" aria-label="Expenses over time; values are in the tables below"></canvas></div>
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>By item</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Amount</th><th>Share</th></tr></thead>
+      <tbody>
+      {% for r in by_item %}
+        <tr><td><a href="{% query item=r.item__id %}">{{ r.item__name }}</a></td><td class="num">{% if r.qty %}{{ r.qty|qty }} {{ r.item__unit }}{% else %}—{% endif %}</td><td class="num">{{ r.amount|inr }}</td>
+        <td>{% include "partials/share.html" with value=r.amount total=total %}</td></tr>
+      {% empty %}<tr><td colspan="4" class="empty">No expenses in this period.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <h2>By category</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Category</th><th class="num">Amount</th><th>Share</th></tr></thead>
+      <tbody>
+      {% for r in by_category %}
+        <tr><td><a href="{% query category=r.key %}">{{ r.name }}</a></td><td class="num">{{ r.amount|inr }}</td><td>{% include "partials/share.html" with value=r.amount total=total %}</td></tr>
+      {% empty %}<tr><td colspan="3" class="empty">—</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>All entries</h2>{% if entry_count > 500 %}<span class="muted">Showing latest 500 — download CSV for all</span>{% endif %}</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Item</th><th class="num">Qty</th><th class="num">Amount</th><th class="hide-sm">Mode</th><th class="hide-sm">Paid by</th><th></th></tr></thead>
+    <tbody>
+    {% for e in entries %}
+      <tr>
+        <td>{{ e.date|date:"d M" }}</td>
+        <td>{{ e.item.name }}{% if e.note %}<div class="meta">{{ e.note }}</div>{% endif %}</td>
+        <td class="num">{% if e.quantity %}{{ e.quantity|qty }} {{ e.item.unit }}{% else %}—{% endif %}</td>
+        <td class="num">{{ e.amount|inr:2 }}</td>
+        <td class="hide-sm">{{ e.get_payment_mode_display|default:"—" }}</td>
+        <td class="hide-sm">{{ e.paid_by|default:"—" }}</td>
+        <td class="num"><a class="btn btn-sm" href="{% url 'expenses:edit' e.pk %}">Edit</a></td>
+      </tr>
+    {% empty %}<tr><td colspan="7" class="empty">No expenses in this period.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{{ chart|json_script:"trend-data" }}
+{% endblock %}
+{% block scripts %}{% if not period.is_single_day %}{% load static %}<script src="{% static 'vendor/chart.umd.min.js' %}"></script><script>Eat.bar("trend", "trend-data");</script>{% endif %}{% endblock %}

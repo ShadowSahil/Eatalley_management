@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Vendors{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Vendors</h1></div><a class="btn" href="{% url 'inventory:list' %}">Back to inventory</a></div>
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Vendor</th><th>Supplies</th><th class="hide-sm">Phone</th><th class="num">Bills</th><th class="num">This FY</th><th class="num">Unpaid</th><th></th></tr></thead>
+    <tbody>
+    {% for v in vendors %}
+      <tr{% if not v.is_active %} style="opacity:.55"{% endif %}>
+        <td><a href="{% url 'inventory:list' %}?view=fy&vendor={{ v.pk }}">{{ v.name }}</a><div class="meta">{{ v.get_category_display }}</div></td>
+        <td>{{ v.supplies|default:"—" }}</td>
+        <td class="hide-sm">{{ v.phone|default:"—" }}</td>
+        <td class="num">{{ v.bills }}</td>
+        <td class="num">{{ v.spent_fy|default:0|inr }}</td>
+        <td class="num {% if v.unpaid %}neg{% endif %}">{{ v.unpaid|default:0|inr }}</td>
+        <td class="num"><a class="btn btn-sm" href="{% url 'inventory:vendor_edit' v.pk %}">Edit</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+<div class="card" style="max-width:760px">
+  <h2>Add a vendor</h2>
+  <form method="post">{% csrf_token %}{% include "partials/fields.html" %}<button class="btn btn-primary" type="submit">Add vendor</button></form>
+</div>
+{% endblock %}

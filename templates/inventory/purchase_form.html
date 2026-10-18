@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{% if purchase %}Edit bill{% else %}Add bill{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{% if purchase %}Edit bill{% else %}Add inventory bill{% endif %}</h1>{% if purchase %}<div class="sub">Added by {{ purchase.created_by|who }} on {{ purchase.created_at|date:"d M Y" }}</div>{% endif %}</div>
+  <a class="btn" href="{% url 'inventory:list' %}">Back to inventory</a>
+</div>
+
+{% if not purchase and not pending %}
+<div class="card">
+  <h2>Have the bill as a PDF?</h2>
+  <form method="post" action="{% url 'inventory:scan' %}" enctype="multipart/form-data" class="entry-date" style="margin:0">
+    {% csrf_token %}
+    <div class="field" style="flex:1;min-width:220px"><label for="id_pdf">Bill PDF or photo</label><input type="file" id="id_pdf" name="pdf" accept="application/pdf,image/*" required></div>
+    <button class="btn" type="submit">Read bill</button>
+  </form>
+  <p class="muted" style="margin:.6rem 0 0">We'll try to fill in the vendor, bill number, date and total from the PDF. Or just fill the form below by hand.</p>
+</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="card" id="purchase-form">
+  {% csrf_token %}
+  {% if scan_note %}<div class="note">{{ scan_note }}</div>{% endif %}
+  {% for m in matches %}
+  <div class="note" style="background:var(--err-bg);color:var(--ink)">
+    <strong>Already recorded?</strong> {{ m.vendor }} {{ m.total|inr:2 }} on {{ m.bill_date|date:"d M Y" }}{% if m.notes %} — <span class="muted">{{ m.notes }}</span>{% endif %}.
+    If this bill is that same purchase, attach it there instead of adding it twice.
+    <button class="btn btn-sm btn-primary" type="submit" form="attach-{{ m.pk }}" style="margin-left:6px">Attach to that entry</button>
+    <a class="btn btn-sm" href="{% url 'inventory:edit' m.pk %}" target="_blank" rel="noopener">View it</a>
+  </div>
+  {% endfor %}
+  {% if lumps %}
+  <div class="note">
+    <strong>Part of a bigger payment?</strong> No payment matches this bill exactly, but these were paid to {{ lumps.0.vendor }} around then without their bills.
+    If one of them settled this bill, choose it: the bill is saved as paid and its amount is taken off that payment, so it isn't counted twice.
+    <div class="actions" style="margin-top:8px">
+      {% for l in lumps %}<button class="btn btn-sm" type="submit" name="part_of" value="{{ l.pk }}">Part of {{ l.total|inr:2 }} paid {{ l.bill_date|date:"d M" }}{% if l.notes %} ({{ l.notes|cut:"Payment recorded in the expense sheet: "|truncatechars:40 }}){% endif %}</button>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% if pending %}<input type="hidden" name="pending" value="{{ pending }}"><input type="hidden" name="pending_name" value="{{ pending_name }}"><p>📎 Attached: <a href="{{ pending_url }}" target="_blank" rel="noopener">view uploaded bill</a></p>{% endif %}
+  {% include "partials/fields.html" %}
+
+  <h3 style="margin-top:8px">What was on the bill <span class="muted" style="font-weight:400">(optional)</span></h3>
+  {{ formset.management_form }}
+  {% if formset.non_form_errors %}<div class="errorlist">{{ formset.non_form_errors }}</div>{% endif %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Amount ₹</th>{% if purchase %}<th>Remove</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for lf in formset %}
+      <tr>
+        <td>{% for h in lf.hidden_fields %}{{ h }}{% endfor %}{{ lf.description }}{{ lf.description.errors }}</td>
+        <td style="width:110px">{{ lf.quantity }}</td>
+        <td style="width:110px">{{ lf.unit }}</td>
+        <td style="width:150px">{{ lf.amount }}{{ lf.amount.errors }}</td>
+        {% if purchase %}<td>{% if lf.instance.pk %}{{ lf.DELETE }}{% endif %}</td>{% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td colspan="3">Lines total</td><td class="num" id="lines-total">—</td>{% if purchase %}<td></td>{% endif %}</tr></tfoot>
+  </table></div>
+
+  <div class="actions" style="margin-top:16px">
+    <button class="btn btn-primary" type="submit">Save bill</button>
+    {% if not purchase %}<button class="btn" type="submit" name="add_another" value="1">Save &amp; add another</button>{% endif %}
+  </div>
+</form>
+{% if purchase %}
+<form method="post" action="{% url 'inventory:delete' purchase.pk %}" data-confirm="Delete this bill permanently?" style="margin-top:16px">{% csrf_token %}<button class="btn btn-sm btn-danger" type="submit">Delete bill</button></form>
+{% endif %}
+{% for m in matches %}
+<form id="attach-{{ m.pk }}" method="post" action="{% url 'inventory:attach' m.pk %}" hidden>{% csrf_token %}
+  <input type="hidden" name="pending" value="{{ pending }}"><input type="hidden" name="pending_name" value="{{ pending_name }}">
+</form>
+{% endfor %}
+{{ vendor_categories|json_script:"vendor-categories" }}
+{% endblock %}
+{% block scripts %}<script>Eat.purchaseForm();</script>{% endblock %}

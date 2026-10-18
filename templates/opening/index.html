@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Opening costs{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Opening costs</h1><div class="sub">One-time spend on setting up the café: equipment, fit-out, launch. Not part of the P&amp;L.</div></div>
+  <div class="actions"><a class="btn" href="{% query format='csv' %}">Download CSV</a></div>
+</div>
+
+<div class="stats">
+  <div class="stat hero"><div class="label">{% if filtered %}Filtered total{% else %}Total opening cost{% endif %}</div><div class="value">{{ total|inr }}</div><div class="hint">{{ count }} entr{{ count|pluralize:"y,ies" }}</div></div>
+  {% for c in by_category|slice:":3" %}<div class="stat"><div class="label">{{ c.name }}</div><div class="value">{{ c.amount|inr }}</div><div class="hint">{{ c.amount|pct:total }} · {{ c.n }} entries</div></div>{% endfor %}
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Add a one-time cost</h2>
+    <form method="post" enctype="multipart/form-data">{% csrf_token %}{% include "partials/fields.html" %}<button class="btn btn-primary" type="submit">Add</button></form>
+  </div>
+  <div class="card">
+    <h2>Who paid</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Person</th><th class="num">Entries</th><th class="num">Amount</th><th>Share</th></tr></thead>
+      <tbody>{% for p in by_payer %}<tr><td>{% if p.id %}<a href="{% query paid_by=p.id %}">{{ p.name }}</a>{% else %}{{ p.name }}{% endif %}</td><td class="num">{{ p.n }}</td><td class="num">{{ p.amount|inr }}</td><td>{% include "partials/share.html" with value=p.amount total=total %}</td></tr>{% empty %}<tr><td colspan="4" class="empty">Nothing yet.</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <h2 style="margin-top:18px">By category</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Category</th><th class="num">Amount</th><th>Share</th></tr></thead>
+      <tbody>{% for c in by_category %}<tr><td><a href="{% query category=c.key %}">{{ c.name }}</a></td><td class="num">{{ c.amount|inr }}</td><td>{% include "partials/share.html" with value=c.amount total=total %}</td></tr>{% empty %}<tr><td colspan="3" class="empty">—</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+</div>
+
+<form method="get" class="period" style="margin-top:16px">
+  <input type="date" name="start" value="{{ f.start|date:'Y-m-d' }}" aria-label="From">
+  <span class="muted">to</span>
+  <input type="date" name="end" value="{{ f.end|date:'Y-m-d' }}" aria-label="To">
+  <select name="category" aria-label="Category"><option value="">All categories</option>{% for v, l in categories %}<option value="{{ v }}" {% if f.category == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <select name="paid_by" aria-label="Paid by"><option value="">Paid by anyone</option>{% for p in payers %}<option value="{{ p.pk }}" {% if f.paid_by == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
+  <input name="q" value="{{ f.q }}" placeholder="Search" style="max-width:180px">
+  <button class="btn btn-sm" type="submit">Filter</button>
+  {% if filtered %}<a class="btn btn-sm" href="?">Clear</a>{% endif %}
+</form>
+
+<div class="card">
+  <h2>Entries{% if count > 1000 %} <span class="muted">(latest 1,000 — download CSV for all)</span>{% endif %}</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Description</th><th class="hide-sm">Category</th><th class="num">Amount</th><th class="hide-sm">Paid by</th><th></th></tr></thead>
+    <tbody>
+    {% for c in costs %}
+      <tr>
+        <td>{{ c.date|date:"d M y" }}</td>
+        <td>{{ c.description|default:"—" }}{% if c.paid_to %}<div class="meta">{{ c.paid_to }}</div>{% endif %}</td>
+        <td class="hide-sm">{{ c.get_category_display }}</td>
+        <td class="num">{{ c.amount|inr }}</td>
+        <td class="hide-sm">{{ c.paid_by|default:"—" }}</td>
+        <td class="num"><a class="btn btn-sm" href="{% url 'opening:edit' c.pk %}">Edit</a></td>
+      </tr>
+    {% empty %}<tr><td colspan="6" class="empty">No opening costs yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Upload sales{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Upload Petpooja sales</h1><div class="sub">Until the Petpooja API is available, export reports from Petpooja and upload them here.</div></div>
+  <a class="btn" href="{% url 'sales:dashboard' %}">Back to sales</a>
+</div>
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Upload a report</h2>
+    <form method="post" enctype="multipart/form-data">{% csrf_token %}
+      {% include "partials/fields.html" %}
+      <button class="btn btn-primary" type="submit">Upload &amp; import</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Which reports?</h2>
+    <ol style="padding-left:1.2rem;margin:0;line-height:1.7">
+      <li><strong>Orders / invoice report</strong> (one row per bill) — gives total sales, payment modes, order types, discounts and GST.</li>
+      <li><strong>Item wise report</strong> — gives item-wise and category-wise sales. If it has no date column, choose the date above (one day per file).</li>
+    </ol>
+    <p class="muted">Uploading a report again for the same dates replaces the earlier numbers, so re-uploading a corrected file is safe. Cancelled orders are excluded from totals.</p>
+  </div>
+</div>
+<div class="card">
+  <h2>Recent uploads</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>File</th><th>Type</th><th>Dates</th><th class="num">Rows</th><th class="hide-sm">Uploaded</th><th></th></tr></thead>
+    <tbody>
+    {% for u in uploads %}
+      <tr>
+        <td><a href="{{ u.file.url }}">{{ u.original_name }}</a>{% if u.log %}<div class="meta">{{ u.log|linebreaksbr }}</div>{% endif %}</td>
+        <td>{{ u.get_report_type_display }}</td>
+        <td>{{ u.start_date|date:"d M Y" }}{% if u.end_date != u.start_date %} – {{ u.end_date|date:"d M Y" }}{% endif %}</td>
+        <td class="num">{{ u.rows_imported }}{% if u.rows_skipped %}<div class="meta">{{ u.rows_skipped }} skipped</div>{% endif %}</td>
+        <td class="hide-sm muted">{{ u.created_at|date:"d M, H:i" }} · {{ u.created_by|who }}</td>
+        <td class="num"><form method="post" action="{% url 'sales:upload_delete' u.pk %}" data-confirm="Remove this upload and all sales rows it added?">{% csrf_token %}<button class="btn btn-sm btn-danger" type="submit">Remove</button></form></td>
+      </tr>
+    {% empty %}<tr><td colspan="6" class="empty">Nothing uploaded yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}
