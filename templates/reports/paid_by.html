@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Who paid{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Who paid</h1><div class="sub">Money put in by Eatalley's own account and by each partner, across every section.</div></div>
+</div>
+
+<form method="get" class="period">
+  <span class="label">Dates</span>
+  <input type="date" name="start" value="{{ start|date:'Y-m-d' }}" aria-label="From">
+  <span class="muted">to</span>
+  <input type="date" name="end" value="{{ end|date:'Y-m-d' }}" aria-label="To">
+  <button class="btn btn-sm" type="submit">Show</button>
+  {% if start or end %}<a class="btn btn-sm" href="?">All time</a>{% else %}<span class="muted">All time</span>{% endif %}
+</form>
+
+<div class="stats">
+  <div class="stat hero"><div class="label">Total spent</div><div class="value">{{ grand|inr }}</div><div class="hint">all sections</div></div>
+  <div class="stat"><div class="label">Paid by partners personally</div><div class="value">{{ partner_total|inr }}</div><div class="hint">{{ partners|length }} partner{{ partners|length|pluralize }}</div></div>
+  <div class="stat"><div class="label">Average per partner</div><div class="value">{{ partner_average|inr }}</div><div class="hint">the difference column below compares each partner to this</div></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Paid by</th>{% for s in sections %}<th class="num">{{ s }}</th>{% endfor %}<th class="num">Total</th><th class="num">vs partner avg.</th></tr></thead>
+    <tbody>
+    {% for r in table %}
+      <tr>
+        <td><strong>{{ r.name }}</strong>{% if r.is_business %}<div class="meta">Eatalley's own money</div>{% endif %}</td>
+        {% for v in r.values %}<td class="num">{% if v %}{{ v|inr }}{% else %}<span class="muted">—</span>{% endif %}</td>{% endfor %}
+        <td class="num"><strong>{{ r.total|inr }}</strong></td>
+        <td class="num">{% if not r.is_business and r.payer %}<span class="{% if r.total >= partner_average %}pos{% else %}neg{% endif %}">{{ r.total|sub:partner_average|inr }}</span>{% endif %}</td>
+      </tr>
+    {% empty %}<tr><td colspan="7" class="empty">Nothing recorded yet.</td></tr>{% endfor %}
+    </tbody>
+    <tfoot><tr><td>Total</td>{% for v in totals %}<td class="num">{{ v|inr }}</td>{% endfor %}<td class="num">{{ grand|inr }}</td><td></td></tr></tfoot>
+  </table></div>
+  <p class="muted" style="font-size:.85rem;margin:.75rem 0 0">A positive difference means that partner has put in more than the average partner.</p>
+</div>
+
+<div class="card" style="max-width:560px">
+  <h2>Add a person</h2>
+  <form method="post">{% csrf_token %}{% include "partials/fields.html" %}<button class="btn btn-primary" type="submit">Add</button></form>
+</div>
+{% endblock %}

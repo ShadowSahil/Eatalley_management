@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Daily expense{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Daily expense</h1>
+    <div class="sub">{{ day|date:"l, d F Y" }}{% if is_today %} · <span class="badge">Today</span>{% endif %}</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{% url 'expenses:list' %}">History &amp; totals</a>
+    <a class="btn" href="{% url 'expenses:items' %}">Manage items</a>
+  </div>
+</div>
+
+<div class="card">
+  <form method="get" class="entry-date">
+    <div class="field">
+      <label for="date-pick">Date</label>
+      <input id="date-pick" type="date" name="date" value="{{ day|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}" data-autosubmit>
+    </div>
+    <a class="btn" href="?date={{ prev_day|date:'Y-m-d' }}" aria-label="Previous day">‹ Prev</a>
+    {% if next_day %}<a class="btn" href="?date={{ next_day|date:'Y-m-d' }}" aria-label="Next day">Next ›</a>{% endif %}
+    {% if not is_today %}<a class="btn" href="?">Back to today</a>{% endif %}
+  </form>
+
+  {% for e in errors %}<div class="note" style="background:var(--err-bg);color:var(--bad)">{{ e }}</div>{% endfor %}
+
+  <form method="post" id="expense-form" autocomplete="off">
+    {% csrf_token %}
+    <input type="hidden" name="date" value="{{ day|date:'Y-m-d' }}">
+    <div class="rows" id="rows">
+      {% for row in rows %}{% include "expenses/_row.html" %}{% endfor %}
+    </div>
+    <div class="save-bar">
+      <button type="button" class="btn" id="add-row">+ Add another item</button>
+      <div class="actions" style="align-items:center">
+        <span class="running" id="running-total"></span>
+        <button class="btn btn-primary" type="submit">Save expenses for {{ day|date:"d M" }}</button>
+      </div>
+    </div>
+  </form>
+  <template id="row-template">{% with row=None %}{% include "expenses/_row.html" %}{% endwith %}</template>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Entered for {{ day|date:"d M Y" }}</h2>
+    <div><strong>{{ day_total|inr:2 }}</strong> <span class="muted">· month to date {{ month_total|inr }}</span></div>
+  </div>
+  {% if entries %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Amount</th><th class="hide-sm">Mode</th><th class="hide-sm">Paid by</th><th class="hide-sm">Added by</th><th></th></tr></thead>
+    <tbody>
+    {% for e in entries %}
+      <tr>
+        <td>{{ e.item.name }}{% if e.note %}<div class="meta">{{ e.note }}</div>{% endif %}</td>
+        <td class="num">{% if e.quantity %}{{ e.quantity|qty }} {{ e.item.unit }}{% else %}—{% endif %}</td>
+        <td class="num">{{ e.amount|inr:2 }}</td>
+        <td class="hide-sm">{{ e.get_payment_mode_display|default:"—" }}</td>
+        <td class="hide-sm">{{ e.paid_by|default:"—" }}</td>
+        <td class="hide-sm muted">{{ e.created_by|who }}</td>
+        <td class="num"><a class="btn btn-sm" href="{% url 'expenses:edit' e.pk %}">Edit</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td>Total</td><td></td><td class="num">{{ day_total|inr:2 }}</td><td colspan="4" class="hide-sm"></td></tr></tfoot>
+  </table></div>
+  {% else %}
+  <p class="empty">Nothing entered for this day yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

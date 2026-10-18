@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Inventory{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Inventory purchases</h1><div class="sub">Vendor bills — JS Foods, Sunrise, Neveen, Hyperpure and others</div></div>
+  <div class="actions">
+    <a class="btn" href="{% url 'inventory:vendors' %}">Vendors</a>
+    <a class="btn btn-primary" href="{% url 'inventory:add' %}">+ Add bill</a>
+  </div>
+</div>
+
+{% include "partials/period.html" %}
+
+<form method="get" class="period" style="margin-top:-8px">
+  {% for k, v in request.GET.items %}{% if k != "vendor" and k != "category" %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+  <select name="vendor" data-autosubmit aria-label="Vendor"><option value="">All vendors</option>{% for v in vendors %}<option value="{{ v.pk }}" {% if vendor_id == v.pk|stringformat:"s" %}selected{% endif %}>{{ v.name }}</option>{% endfor %}</select>
+  <select name="category" data-autosubmit aria-label="Category"><option value="">All categories</option>{% for v, l in categories %}<option value="{{ v }}" {% if category == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  {% if vendor_id or category %}<a class="btn btn-sm" href="{% query vendor='' category='' %}">Clear filters</a>{% endif %}
+</form>
+
+<div class="stats">
+  <div class="stat hero"><div class="label">Purchases</div><div class="value">{{ total|inr }}</div><div class="hint">{{ purchases|length }} bill{{ purchases|length|pluralize }} · GST {{ tax|inr }}</div></div>
+  {% for v in by_vendor|slice:":3" %}<div class="stat"><div class="label">{{ v.vendor__name }}</div><div class="value">{{ v.amount|inr }}</div><div class="hint">{{ v.bills }} bill{{ v.bills|pluralize }}</div></div>{% endfor %}
+  <div class="stat"><div class="label">Unpaid (all time)</div><div class="value {% if unpaid_total %}neg{% endif %}">{{ unpaid_total|inr }}</div><div class="hint">{% for u in unpaid_by_vendor|slice:":3" %}{{ u.vendor__name }} {{ u.amount|inr }}{% if not forloop.last %} · {% endif %}{% empty %}All bills paid{% endfor %}</div></div>
+</div>
+
+{% if not period.is_single_day %}
+<div class="card">
+  <div class="card-head"><h2>Purchases over time</h2><span class="muted">₹ per {% if period.kind == "fy" %}month{% elif period.kind == "quarter" %}week{% else %}day{% endif %}</span></div>
+  <div class="chart-box"><canvas id="trend" role="img" aria-label="Purchases over time"></canvas></div>
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>By vendor</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Vendor</th><th class="num">Bills</th><th class="num">Amount</th><th>Share</th></tr></thead>
+      <tbody>{% for r in by_vendor %}<tr><td>{{ r.vendor__name }}</td><td class="num">{{ r.bills }}</td><td class="num">{{ r.amount|inr }}</td><td>{% include "partials/share.html" with value=r.amount total=total %}</td></tr>{% empty %}<tr><td colspan="4" class="empty">No bills in this period.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <h2>By type of inventory</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Type</th><th class="num">Amount</th><th>Share</th></tr></thead>
+      <tbody>{% for r in by_category %}<tr><td>{{ r.name }}</td><td class="num">{{ r.amount|inr }}</td><td>{% include "partials/share.html" with value=r.amount total=total %}</td></tr>{% empty %}<tr><td colspan="3" class="empty">—</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Bills</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Vendor</th><th>Bill no.</th><th class="num">Total</th><th>Status</th><th class="hide-sm">Bill</th><th></th></tr></thead>
+    <tbody>
+    {% for p in purchases %}
+      <tr>
+        <td>{{ p.bill_date|date:"d M" }}</td>
+        <td>{{ p.vendor }}<div class="meta">{{ p.get_category_display }}{% if p.notes %} · {{ p.notes }}{% endif %}</div></td>
+        <td>{{ p.bill_number|default:"—" }}</td>
+        <td class="num">{{ p.total|inr:2 }}</td>
+        <td>{% if p.is_paid %}<span class="pos">✓ Paid</span><div class="meta">{{ p.paid_on|date:"d M" }}{% if p.paid_by %} · {{ p.paid_by }}{% endif %}</div>{% else %}
+          <form method="post" action="{% url 'inventory:mark_paid' p.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><span class="neg">Unpaid</span> <button class="btn-link" type="submit">Mark paid</button></form>{% endif %}</td>
+        <td class="hide-sm">{% if p.bill_file %}<a href="{{ p.bill_file.url }}" target="_blank" rel="noopener">View</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="num"><a class="btn btn-sm" href="{% url 'inventory:edit' p.pk %}">Edit</a></td>
+      </tr>
+    {% empty %}<tr><td colspan="7" class="empty">No bills in this period. <a href="{% url 'inventory:add' %}">Add one</a></td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{{ chart|json_script:"trend-data" }}
+{% endblock %}
+{% block scripts %}{% if not period.is_single_day %}<script src="{% static 'vendor/chart.umd.min.js' %}"></script><script>Eat.bar("trend", "trend-data");</script>{% endif %}{% endblock %}

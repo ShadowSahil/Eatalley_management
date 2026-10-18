@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Expense items{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Expense items</h1><div class="sub">The list shown in the Daily expense dropdown</div></div>
+  <a class="btn" href="{% url 'expenses:entry' %}">Back to daily expense</a>
+</div>
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Add an item</h2>
+    <form method="post">{% csrf_token %}{% include "partials/fields.html" %}<button class="btn btn-primary" type="submit">Add item</button></form>
+  </div>
+  <div class="card">
+    <h2>Import a list from Excel</h2>
+    <p class="muted">Upload an Excel or CSV file with an <strong>Item</strong> column (optionally <strong>Unit</strong> and <strong>Category</strong>). Items already in the list are skipped.</p>
+    <form method="post" action="{% url 'expenses:items_import' %}" enctype="multipart/form-data">{% csrf_token %}
+      {% with form=import_form %}{% include "partials/fields.html" %}{% endwith %}
+      <button class="btn" type="submit">Import items</button>
+    </form>
+  </div>
+</div>
+<div class="card">
+  <div class="card-head">
+    <h2>{{ items|length }} item{{ items|length|pluralize }}</h2>
+    <form method="get"><input name="q" value="{{ q }}" placeholder="Search items" style="min-width:220px"></form>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Item</th><th>Category</th><th>Unit</th><th class="num">Last price</th><th class="num">Spent (30 days)</th><th class="num hide-sm">Last used</th><th></th></tr></thead>
+    <tbody>
+    {% for it in items %}
+      <tr{% if not it.is_active %} style="opacity:.55"{% endif %}>
+        <td>{{ it.name }}{% if not it.is_active %} <span class="badge">hidden</span>{% endif %}</td>
+        <td>{{ it.get_category_display }}</td>
+        <td>{{ it.unit }}</td>
+        <td class="num">{% if it.last_rate %}{{ it.last_rate|inr:2 }}/{{ it.unit }}{% else %}—{% endif %}</td>
+        <td class="num">{{ it.spent_30|default:0|inr }}</td>
+        <td class="num hide-sm muted">{{ it.last_used|date:"d M"|default:"—" }}</td>
+        <td class="num"><a class="btn btn-sm" href="{% url 'expenses:item_edit' it.pk %}">Edit</a></td>
+      </tr>
+    {% empty %}<tr><td colspan="7" class="empty">No items yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}
