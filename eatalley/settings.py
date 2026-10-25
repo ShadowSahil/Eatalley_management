@@ -78,7 +78,8 @@ WSGI_APPLICATION = "eatalley.wsgi.application"
 DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,
+        # 0 = close after each request, so a serverless database (Neon) can sleep when idle.
+        conn_max_age=int(os.environ.get("DJANGO_DB_CONN_MAX_AGE", 600)),
     )
 }
 
@@ -96,8 +97,29 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# Uploaded files go to the local disk, or to an S3-compatible bucket (Cloudflare R2)
+# when one is configured — hosts like Render's free plan have no lasting disk.
+S3_BUCKET = os.environ.get("DJANGO_S3_BUCKET", "")
 STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "default": (
+        {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "bucket_name": S3_BUCKET,
+                "endpoint_url": os.environ.get("DJANGO_S3_ENDPOINT_URL"),
+                "access_key": os.environ.get("DJANGO_S3_ACCESS_KEY_ID"),
+                "secret_key": os.environ.get("DJANGO_S3_SECRET_ACCESS_KEY"),
+                "region_name": "auto",
+                "signature_version": "s3v4",
+                # Bills stay private: links are signed and expire after an hour.
+                "querystring_auth": True,
+                "querystring_expire": 3600,
+                "file_overwrite": False,
+            },
+        }
+        if S3_BUCKET
+        else {"BACKEND": "django.core.files.storage.FileSystemStorage"}
+    ),
     "staticfiles": {
         "BACKEND": (
             "django.contrib.staticfiles.storage.StaticFilesStorage"

@@ -1,7 +1,9 @@
 dj-database-url==3.1.2
+django-storages[s3]==1.14.6
 Django==5.2.18
 gunicorn==26.2.0
 openpyxl==3.1.5
 pdfplumber==0.11.10
+psycopg[binary]==3.3.6
 whitenoise==6.12.0
 xlrd==2.0.2
