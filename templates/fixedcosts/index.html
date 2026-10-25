@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Fixed costs{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Fixed costs</h1><div class="sub">Monthly costs like rent, electricity and staff room rent. They feed into the P&amp;L for the month they are for.</div></div>
+  <div class="actions"><a class="btn btn-primary" href="{% url 'fixedcosts:add' %}?month={{ month|date:'Y-m' }}">Add fixed cost</a></div>
+</div>
+
+<div class="period">
+  <a class="btn arrow" href="?month={{ prev_month|date:'Y-m' }}" aria-label="Previous month">‹</a>
+  <span class="label">{{ month|date:"F Y" }}</span>
+  <a class="btn arrow" href="?month={{ next_month|date:'Y-m' }}" aria-label="Next month">›</a>
+  <form method="get" class="inline"><input type="month" name="month" value="{{ month|date:'Y-m' }}" data-autosubmit aria-label="Month"></form>
+</div>
+
+<div class="stats">
+  <div class="stat hero"><div class="label">Fixed costs for {{ month|date:"M Y" }}</div><div class="value">{{ total|inr }}</div><div class="hint">{{ costs|length }} entr{{ costs|length|pluralize:"y,ies" }}</div></div>
+  <div class="stat"><div class="label">Not added yet</div><div class="value {% if missing %}neg{% endif %}">{{ missing|length }}</div><div class="hint">{% if missing %}{{ missing|join:", " }}{% else %}all recorded{% endif %}</div></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>{{ month|date:"F Y" }}</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Cost</th><th class="num">Paid for this month</th><th class="num hide-sm">Last amount</th><th></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr{% if not r.head.is_active %} style="opacity:.55"{% endif %}>
+          <td><a href="{% url 'fixedcosts:head_edit' r.head.pk %}">{{ r.head.name }}</a>{% if not r.head.is_active %}<div class="meta">no longer expected</div>{% endif %}</td>
+          <td class="num">{% if r.paid %}<span class="pos">{{ r.paid|inr }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td class="num hide-sm">{% if r.last is not None %}{{ r.last|inr }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td class="num"><a class="btn btn-sm{% if not r.paid %} btn-primary{% endif %}" href="{% url 'fixedcosts:add' %}?month={{ month|date:'Y-m' }}&head={{ r.head.pk }}">Add</a></td>
+        </tr>
+      {% empty %}<tr><td colspan="4" class="empty">No fixed cost types yet — add one on the right.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <h2>Add a type of fixed cost</h2>
+    <p class="muted">e.g. Internet, Water, Maintenance. It will then show every month.</p>
+    <form method="post" action="{% url 'fixedcosts:head_add' %}">{% csrf_token %}{% include "partials/fields.html" with form=head_form %}<button class="btn" type="submit">Add type</button></form>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Entries for {{ month|date:"F Y" }}</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Cost</th><th class="num">Amount</th><th>Paid on</th><th class="hide-sm">Mode</th><th class="hide-sm">Paid by</th><th class="hide-sm">Note</th><th></th></tr></thead>
+    <tbody>
+    {% for c in costs %}
+      <tr>
+        <td>{{ c.head }}{% if c.bill_file %} <a href="{{ c.bill_file.url }}" target="_blank" rel="noopener" title="View bill">📎</a>{% endif %}</td>
+        <td class="num">{{ c.amount|inr }}</td>
+        <td>{{ c.paid_on|date:"d M y" }}</td>
+        <td class="hide-sm">{{ c.get_payment_mode_display|default:"—" }}</td>
+        <td class="hide-sm">{{ c.paid_by|default:"—" }}</td>
+        <td class="hide-sm">{{ c.note|default:"" }}</td>
+        <td class="num"><a class="btn btn-sm" href="{% url 'fixedcosts:edit' c.pk %}">Edit</a></td>
+      </tr>
+    {% empty %}<tr><td colspan="7" class="empty">Nothing recorded for {{ month|date:"F Y" }} yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

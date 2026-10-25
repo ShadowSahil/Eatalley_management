@@ -8,6 +8,7 @@ from django.test import TestCase
 
 from core.models import Payer
 from expenses.models import DailyExpense
+from fixedcosts.models import FixedCost
 from inventory.models import Purchase
 from opening.models import OpeningCost
 from payroll.models import SalaryPayment, Staff
@@ -87,6 +88,10 @@ class ImportSheetTests(TestCase):
         self.assertEqual(items["Gas Cylinder"], Decimal("2400"))
         self.assertEqual(items["Agarbatti & pest control"], Decimal("414"))
         self.assertEqual(items["GST payment"], Decimal("3630"))
+        # rent and bills go to fixed costs, for the month they were paid
+        elec = FixedCost.objects.get()
+        self.assertEqual((elec.head.name, elec.month, elec.amount), ("Electricity bill", date(2026, 8, 1), Decimal("24294")))
+        self.assertNotIn("Electricity & maintenance", items)
         self.assertEqual(DailyExpense.objects.get(item__name="Milk").payment_mode, "cash")
         # salaries: the monthly chef, labour is adhoc
         chef = Staff.objects.get(name="Ravi Kumar")
@@ -113,7 +118,7 @@ class ImportSheetTests(TestCase):
         with self.assertRaises(CommandError):
             self.run_cmd(self.tmp.name)
         self.run_cmd("--undo")
-        for m in (DailyExpense, Purchase, SalaryPayment, OpeningCost):
+        for m in (DailyExpense, Purchase, FixedCost, SalaryPayment, OpeningCost):
             self.assertFalse(m.objects.exists(), m.__name__)
 
 

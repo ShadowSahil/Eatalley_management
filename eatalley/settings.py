@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "inventory",
     "payroll",
     "opening",
+    "fixedcosts",
     "reports",
 ]
 

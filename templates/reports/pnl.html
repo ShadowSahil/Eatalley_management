@@ -3,7 +3,7 @@
 {% block title %}Profit &amp; loss{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Profit &amp; loss</h1><div class="sub">Sales in − (inventory bills + daily expenses + salaries) out</div></div>
+  <div><h1>Profit &amp; loss</h1><div class="sub">Sales in − (inventory bills + daily expenses + fixed costs + salaries) out</div></div>
   <div class="actions"><a class="btn" href="{% query format='csv' %}">Download CSV</a></div>
 </div>
 
@@ -32,13 +32,15 @@
         {% for r in p.inventory_by_vendor %}<tr class="child"><td>{{ r.vendor__name }}</td><td class="num">{{ r.amount|inr }}</td><td></td></tr>{% endfor %}
         <tr class="group"><td>Daily expenses</td><td class="num">{{ p.expenses|inr }}</td><td class="num muted">{{ p.expenses|pct:p.revenue }}</td></tr>
         {% for r in p.expense_by_category %}<tr class="child"><td>{{ r.name }}</td><td class="num">{{ r.amount|inr }}</td><td></td></tr>{% endfor %}
+        <tr class="group"><td>Fixed costs</td><td class="num">{{ p.fixed|inr }}</td><td class="num muted">{{ p.fixed|pct:p.revenue }}</td></tr>
+        {% for r in p.fixed_by_head %}<tr class="child"><td>{{ r.name }}</td><td class="num">{{ r.amount|inr }}</td><td></td></tr>{% endfor %}
         <tr class="group"><td>Salaries</td><td class="num">{{ p.salary|inr }}</td><td class="num muted">{{ p.salary|pct:p.revenue }}</td></tr>
         {% if p.salary_estimated %}<tr class="child"><td>of which estimated (not yet recorded as paid)</td><td class="num muted">{{ p.salary_estimated|inr }}</td><td></td></tr>{% endif %}
         <tr class="group"><td>Total costs</td><td class="num">{{ p.total_cost|inr }}</td><td class="num muted">{{ p.total_cost|pct:p.revenue }}</td></tr>
         <tr class="total"><td>{% if p.profit >= 0 %}Net profit{% else %}Net loss{% endif %}</td><td class="num {% if p.profit >= 0 %}pos{% else %}neg{% endif %}">{{ p.profit|inr }}</td><td class="num">{% if p.margin is not None %}{{ p.margin|floatformat:1 }}%{% endif %}</td></tr>
       </tbody>
     </table>
-    {% if period.days < 28 %}<p class="muted" style="font-size:.82rem">Salaries are monthly, so this view includes {{ period.days }} day{{ period.days|pluralize }}' share of the month's salary.</p>{% endif %}
+    {% if period.days < 28 %}<p class="muted" style="font-size:.82rem">Salaries and fixed costs are monthly, so this view includes {{ period.days }} day{{ period.days|pluralize }}' share of the month's salary, rent and bills.</p>{% endif %}
   </div>
   <div class="card">
     {% if not period.is_single_day %}
@@ -55,13 +57,13 @@
 <div class="card">
   <h2>Breakdown</h2>
   <div class="table-wrap"><table>
-    <thead><tr><th>{% if period.kind == "fy" %}Month{% elif period.kind == "quarter" %}Week of{% else %}Day{% endif %}</th><th class="num">Sales</th><th class="num">Inventory</th><th class="num">Expenses</th><th class="num">Salaries</th><th class="num">Profit</th></tr></thead>
+    <thead><tr><th>{% if period.kind == "fy" %}Month{% elif period.kind == "quarter" %}Week of{% else %}Day{% endif %}</th><th class="num">Sales</th><th class="num">Inventory</th><th class="num">Expenses</th><th class="num">Fixed</th><th class="num">Salaries</th><th class="num">Profit</th></tr></thead>
     <tbody>
     {% for r in p.rows %}
-      <tr><td>{{ r.label }}</td><td class="num">{{ r.revenue|inr }}</td><td class="num">{{ r.inventory|inr }}</td><td class="num">{{ r.expenses|inr }}</td><td class="num">{{ r.salary|inr }}</td><td class="num {% if r.profit < 0 %}neg{% endif %}">{{ r.profit|inr }}</td></tr>
+      <tr><td>{{ r.label }}</td><td class="num">{{ r.revenue|inr }}</td><td class="num">{{ r.inventory|inr }}</td><td class="num">{{ r.expenses|inr }}</td><td class="num">{{ r.fixed|inr }}</td><td class="num">{{ r.salary|inr }}</td><td class="num {% if r.profit < 0 %}neg{% endif %}">{{ r.profit|inr }}</td></tr>
     {% endfor %}
     </tbody>
-    <tfoot><tr><td>Total</td><td class="num">{{ p.revenue|inr }}</td><td class="num">{{ p.inventory|inr }}</td><td class="num">{{ p.expenses|inr }}</td><td class="num">{{ p.salary|inr }}</td><td class="num {% if p.profit < 0 %}neg{% endif %}">{{ p.profit|inr }}</td></tr></tfoot>
+    <tfoot><tr><td>Total</td><td class="num">{{ p.revenue|inr }}</td><td class="num">{{ p.inventory|inr }}</td><td class="num">{{ p.expenses|inr }}</td><td class="num">{{ p.fixed|inr }}</td><td class="num">{{ p.salary|inr }}</td><td class="num {% if p.profit < 0 %}neg{% endif %}">{{ p.profit|inr }}</td></tr></tfoot>
   </table></div>
 </div>
 {{ chart|json_script:"pnl-data" }}
