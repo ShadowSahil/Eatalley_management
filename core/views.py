@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from django.views.static import serve
@@ -13,6 +14,11 @@ User = get_user_model()
 def home(request):
     # Daily expenses are what the team opens the site for most.
     return redirect("expenses:entry")
+
+
+def healthz(request):
+    # For the host's health check and the keep-awake ping: no login, no database.
+    return HttpResponse("ok", content_type="text/plain")
 
 
 def media(request, path):

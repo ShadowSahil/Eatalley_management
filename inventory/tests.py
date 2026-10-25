@@ -120,7 +120,7 @@ class PurchaseTests(TestCase):
 
     def test_seeded_vendors(self):
         self.assertEqual(
-            sorted(Vendor.objects.values_list("name", flat=True)), ["Hyperpure", "JS Foods", "Naveen Kumar Vegetables", "Sunrise Food Services"]
+            sorted(Vendor.objects.values_list("name", flat=True)), ["Hyperpure", "JS Foods", "Mokafarms", "Naveen Kumar Vegetables", "Sunrise Food Services"]
         )
 
 
@@ -159,6 +159,7 @@ class ScanFlowTests(TestCase):
         with tempfile.TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
             r = self.client.post("/inventory/scan/", {"pdf": SimpleUploadedFile("bill.pdf", pdf, "application/pdf")})
             self.assertContains(r, "Read from the PDF")
+            self.assertContains(r, 'action="/inventory/add/"')  # page is at /scan/; saving must not post back there
             form = r.context["form"]
             self.assertEqual(form.initial["vendor"], Vendor.objects.get(name="Sunrise Food Services").pk)
             self.assertEqual(form.initial["total"], Decimal("2520.00"))
@@ -184,6 +185,22 @@ class NumberParsingTests(TestCase):
         self.assertEqual(_num("10.18+10.18\n+0"), Decimal("20.36"))
         self.assertIsNone(_num(""))
         self.assertIsNone(_num("Count"))
+
+    def test_single_item_sharing_a_cell_with_tax_lines(self):
+        """Sunrise bills: one item, with IGST and round-off written under it in the same cell."""
+        from inventory.pdfparse import _read_item_table
+
+        table = [
+            ["Sl\nNo.", "Description of Goods", "HSN/SAC", "Quantity", "Rate", "per", "Disc. %", "Amount"],
+            ["1", "MOLINI PIZZUTI - FLOUR FOR\nPIZZA COSTA D AMALFI (Kg)\nIGST OUTPUT\nRound Off", "11010000",
+             "30.000 kgs", "325.00", "kgs", "", "9,750.00\n487.50\n0.50"],
+            ["", "Total", "", "30.000 kgs", "", "", "", "(cid:299) 10,238.00"],
+        ]
+        _, lines, totals = _read_item_table(table)
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0]["description"], "MOLINI PIZZUTI - FLOUR FOR PIZZA COSTA D AMALFI (Kg)")
+        self.assertEqual((lines[0]["quantity"], lines[0]["amount"]), (Decimal("30"), Decimal("9750")))
+        self.assertEqual(totals["total"], Decimal("10238"))
 
 
 class AttachToExistingTests(TestCase):

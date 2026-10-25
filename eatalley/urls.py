@@ -17,5 +17,6 @@ urlpatterns = [
     path("staff/", include("payroll.urls")),
     path("pnl/", include("reports.urls")),
     path("opening/", include("opening.urls")),
+    path("fixed/", include("fixedcosts.urls")),
     path("", include("core.urls")),
 ]

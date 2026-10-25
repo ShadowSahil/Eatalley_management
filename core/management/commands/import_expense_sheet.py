@@ -10,8 +10,11 @@ Sheet layout: tabs "August", "September", "October" (running costs) and
 Date | Amount | By | To | Type | Comment(s) | Mode.
 
 Where rows go:
-  * Type "Inventory" paid to JS Foods / Sunrise / Naveen / Hyperpure -> Inventory bills
-  * other Inventory, Misc, Bill, Rent, Marketing                      -> Daily expenses
+  * Type "Inventory" paid to JS Foods / Sunrise (SFS) / Naveen / Hyperpure / Mokafarms -> Inventory bills
+  * Type "Bill" / "Rent", and staff room rent                         -> Fixed costs
+  * other Inventory, Misc, Marketing                                  -> Daily expenses
+    (Inventory rows get the item named in the comment; the item list is
+     seeded by expenses/migrations/0004_sheet_items.py)
   * Type "Salary"                                                     -> Staff payments
     (paid to someone on the Staff page with a monthly salary -> their payments;
      everyone else -> "Adhoc helper". Add monthly staff on the Staff page first.)
@@ -31,6 +34,7 @@ from django.db import transaction
 from core.models import Payer
 from core.periods import add_months
 from expenses.models import DailyExpense, ExpenseItem
+from fixedcosts.models import FixedCost, FixedCostHead
 from inventory.models import Purchase, Vendor
 from opening.models import OpeningCost
 from payroll.models import SalaryPayment, Staff
@@ -46,7 +50,10 @@ VENDOR_RULES = [  # substring of "To" (lower-case) -> vendor name
     ("js food", "JS Foods"),
     ("j s food", "JS Foods"),
     ("sunrise", "Sunrise Food Services"),
+    ("sfs", "Sunrise Food Services"),
     ("naveen", "Naveen Kumar Vegetables"),
+    ("mokafarm", "Mokafarms"),
+    ("moka farm", "Mokafarms"),
 ]
 ADHOC = ("Adhoc helper", "Daily / ad-hoc helpers and labour")
 
@@ -64,29 +71,75 @@ PHRASES = [
     (r"milk\s*straw", "straw"),
     (r"water\s*bottles?", "waterbottle"),
     (r"coffee\s*sachet", "coffeesachet"),
-    (r"kitchen\s*towel", "cleaning"),
+    (r"kitchen\s*towel", "kitchentowel"),
     (r"display\s*packet", "packet"),
+    (r"cherry\s*tomato", "cherrytomato"),
+    (r"peanut\s*butter", "peanutbutter"),
+    (r"wrapping\s*paper", "wrapping"),
+    (r"room\s*fresh(e)?ner", "freshener"),
 ]
+# Everything bought under "Inventory" outside the vendors above. Keep the
+# names in step with expenses/migrations/0004_sheet_items.py.
 ITEMS = [  # name, category, unit, token regex
     ("Milk", "dairy", "L", r"milk"),
     ("Paneer", "dairy", "kg", r"paneer"),
     ("Condensed milk (Milkmaid)", "dairy", "pcs", r"milkmaid"),
-    ("Cheese (local)", "dairy", "pkt", r"cheese|parm|cheddar|parmesan"),
+    ("Dahi", "dairy", "kg", r"dahi|curd"),
+    ("Adhoc cheese", "dairy", "pkt", r"cheese|parm|parmesan|cheddar"),  # top-ups outside JS Foods
     ("Ice", "beverages", "bag", r"ice"),
     ("Ice cream", "beverages", "pcs", r"icecream"),
     ("Cold Drink", "beverages", "btl", r"colddrink|coke|sprite|soda"),
     ("Coconut Water", "beverages", "pcs", r"coconutwater"),
-    ("Coffee beans", "beverages", "kg", r"coffee"),
     ("Coffee sachets", "beverages", "pkt", r"coffeesachet"),
     ("Protein powder", "beverages", "kg", r"protein"),
     ("Water bottles", "beverages", "btl", r"waterbottle"),
-    ("Gas Cylinder", "gas_fuel", "cyl", r"cylinder|gas"),
-    ("Fruits", "veg_fruit", "kg", r"watermelon|banana|cheery|cherry"),
-    ("Vegetables & herbs", "veg_fruit", "kg", r"vegetables?|parsley|mint|basil|broccoli|mushroom|corn|cucumber|tomato|lemon"),
+    ("Syrups", "beverages", "btl", r"syrup"),
+    ("Watermelon", "veg_fruit", "kg", r"watermelon"),
+    ("Banana", "veg_fruit", "dozen", r"banana"),
+    ("Cherries", "veg_fruit", "pkt", r"cheery|cherry"),
+    ("Lemon", "veg_fruit", "kg", r"lemon|nembu|nimbu"),
+    ("Mint", "veg_fruit", "pkt", r"mint"),
+    ("Parsley", "veg_fruit", "pkt", r"parsley"),
+    ("Basil", "veg_fruit", "pkt", r"basil"),
+    ("Broccoli", "veg_fruit", "kg", r"broccoli"),
+    ("Mushroom", "veg_fruit", "pkt", r"mushrooms?"),
+    ("Cucumber", "veg_fruit", "kg", r"cucumber"),
+    ("Tomato", "veg_fruit", "kg", r"tomato"),
+    ("Cherry tomato", "veg_fruit", "pkt", r"cherrytomato"),
+    ("Corn", "veg_fruit", "pkt", r"corn"),
+    ("Vegetables (mixed)", "veg_fruit", "kg", r"vegetables?"),
     ("Rice", "grocery", "kg", r"rice"),
     ("Bread", "grocery", "pkt", r"bread"),
-    ("Packaging & straws", "packaging", "nos", r"straw|tape|foil|packet|container"),
-    ("Cleaning supplies", "cleaning", "nos", r"mop|lizol|brush|cleaning|makkhi|handwash|gloves|cloth"),
+    ("Besan", "grocery", "kg", r"besan"),
+    ("Rajma", "grocery", "kg", r"rajma"),
+    ("Refined oil", "grocery", "L", r"refined"),
+    ("Yeast", "grocery", "pkt", r"yeast"),
+    ("Ketchup", "grocery", "btl", r"ketchup"),
+    ("Tabasco", "grocery", "btl", r"tabasco|tabisco"),
+    ("Peanut butter", "grocery", "pcs", r"peanutbutter"),
+    ("Muesli", "grocery", "pkt", r"muesli"),
+    ("Maggi", "grocery", "pkt", r"maggi|maggie"),
+    ("Fries (frozen)", "grocery", "pkt", r"fries"),
+    ("Pepperoni", "grocery", "pkt", r"pepperoni"),
+    ("Chicken", "grocery", "kg", r"chicken"),
+    ("Straws", "packaging", "pkt", r"straws?"),
+    ("Foil", "packaging", "nos", r"foil"),
+    ("Wrapping paper", "packaging", "nos", r"wrapping"),
+    ("Containers", "packaging", "nos", r"containers?"),
+    ("Display packets", "packaging", "nos", r"packets?"),
+    ("Tape", "packaging", "nos", r"tape"),
+    ("Gloves", "cleaning", "box", r"gloves"),
+    ("Kitchen towels", "cleaning", "nos", r"kitchentowel"),
+    ("Mop", "cleaning", "nos", r"mop"),
+    ("Lizol", "cleaning", "btl", r"lizol"),
+    ("Handwash", "cleaning", "btl", r"handwash"),
+    ("Cleaning cloth", "cleaning", "nos", r"cloth"),
+    ("Brush", "cleaning", "nos", r"brush"),
+    ("Fly repellent", "cleaning", "nos", r"makkhi"),
+    ("Room freshener", "cleaning", "nos", r"freshener"),
+    ("Gas Cylinder", "gas_fuel", "cyl", r"cylinder|gas"),
+    ("Batteries", "other", "nos", r"cell|battery|batteries"),
+    ("Stationery", "other", "nos", r"markers?|stationery"),
     ("Change given to customer", "other", "nos", r"change"),
 ]
 MIXED = ("Mixed groceries", "grocery", "nos")
@@ -98,7 +151,8 @@ OTHER_RULES = [
     (r"anthropic|claude|subs\b", ("Software subscriptions", "admin", "nos")),
     (r"recharge", ("Phone recharge", "utilities", "nos")),
     (r"customer|\bchange\b|extra cash", ("Change given to customer", "other", "nos")),
-    (r"\broom\b|\bstay\b|\brent\b", ("Staff room rent", "rent", "nos")),
+    (r"\broom\b|\bstay\b", ("Staff room rent", "rent", "nos")),
+    (r"\brent\b", ("Rent", "rent", "nos")),
     (r"menu|printing", ("Menu & printing", "marketing", "nos")),
     (r"billboard|sign\b", ("Signage & billboards", "marketing", "nos")),
     (r"team meeting|staff|daaru|alcohol|gift|rashan|whiskey", ("Staff welfare & team meetings", "staff", "nos")),
@@ -109,10 +163,16 @@ OTHER_RULES = [
 ]
 TYPE_DEFAULTS = {
     "bill": ("Electricity & maintenance", "utilities", "nos"),
-    "rent": ("Staff room rent", "rent", "nos"),
+    "rent": ("Rent", "rent", "nos"),
     "marketing": ("Signage & billboards", "marketing", "nos"),
 }
 MISC = ("Miscellaneous", "other", "nos")
+# Rows classified as these go to Fixed costs (month = the month paid) instead of daily expenses.
+FIXED_HEADS = {
+    "Rent": "Rent",
+    "Electricity & maintenance": "Electricity bill",
+    "Staff room rent": "Staff room rent",
+}
 
 OPENING_CATEGORIES = {
     "interior": "interior", "equipments": "equipment", "equipment": "equipment", "misc": "misc",
@@ -195,7 +255,7 @@ class Command(BaseCommand):
             return self.undo()
         if not path:
             raise CommandError("Give the path to the downloaded .xlsx")
-        if any(m.objects.filter(source=SOURCE).exists() for m in (DailyExpense, Purchase, SalaryPayment, OpeningCost)):
+        if any(m.objects.filter(source=SOURCE).exists() for m in (DailyExpense, Purchase, FixedCost, SalaryPayment, OpeningCost)):
             raise CommandError("The sheet is already imported. Run with --undo first to re-import.")
 
         import openpyxl
@@ -220,7 +280,11 @@ class Command(BaseCommand):
                 plan["opening"].append(r)
             else:
                 r["item"] = classify_other(kind, r["to"], r["comment"])
-                plan["expenses"].append(r)
+                if r["item"][0] in FIXED_HEADS:
+                    r["head"] = FIXED_HEADS[r["item"][0]]
+                    plan["fixed"].append(r)
+                else:
+                    plan["expenses"].append(r)
         for r in opening:
             r["category"] = OPENING_CATEGORIES.get(r["type"], "misc")
             plan["opening"].append(r)
@@ -240,7 +304,7 @@ class Command(BaseCommand):
         total = lambda rows: sum((r["amount"] for r in rows), Decimal(0))  # noqa: E731
         w(f"Sheet: {len(monthly)} rows in {', '.join(MONTH_TABS)} (₹{total(monthly):,.0f}), "
           f"{len(opening)} rows in Opening (₹{total(opening):,.0f})")
-        for dest in ("expenses", "bills", "salary", "opening"):
+        for dest in ("expenses", "bills", "fixed", "salary", "opening"):
             w(f"  -> {dest:9} {len(plan[dest]):4} rows  ₹{total(plan[dest]):>12,.0f}")
         mapped = total([r for rows in plan.values() for r in rows])
         w(f"     total     {sum(len(v) for v in plan.values()):4} rows  ₹{mapped:>12,.0f}")
@@ -320,6 +384,17 @@ class Command(BaseCommand):
                 source=SOURCE,
             )
 
+        heads = {}
+        for r in plan["fixed"]:
+            if r["head"] not in heads:
+                heads[r["head"]] = (FixedCostHead.objects.filter(name__iexact=r["head"]).first()
+                                     or FixedCostHead.objects.create(name=r["head"]))
+            FixedCost.objects.create(
+                head=heads[r["head"]], month=r["date"].replace(day=1), amount=r["amount"], paid_on=r["date"],
+                payment_mode=r["mode"], paid_by=payer(r["by"]),
+                note=": ".join(x for x in (r["to"], r["comment"]) if x)[:200], source=SOURCE,
+            )
+
         for r in plan["opening"]:
             OpeningCost.objects.create(
                 date=r["date"], amount=r["amount"], category=r["category"], paid_to=r["to"][:100],
@@ -329,6 +404,6 @@ class Command(BaseCommand):
     def undo(self):
         with transaction.atomic():
             counts = {m.__name__: m.objects.filter(source=SOURCE).delete()[0]
-                      for m in (DailyExpense, Purchase, SalaryPayment, OpeningCost)}
+                      for m in (DailyExpense, Purchase, FixedCost, SalaryPayment, OpeningCost)}
         self.stdout.write(self.style.SUCCESS(f"Removed imported rows: {counts}"))
         self.stdout.write("Items, staff and people created by the import were kept; delete them in Admin if unwanted.")

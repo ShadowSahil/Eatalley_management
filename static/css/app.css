@@ -84,9 +84,9 @@ small, .muted { color: var(--muted); }
   max-width: 1180px; margin: 0 auto; padding: 0 16px;
   display: flex; align-items: center; gap: 18px; min-height: 56px;
 }
-.logo { font-weight: 800; font-size: 1.15rem; color: var(--ink); letter-spacing: -.02em; white-space: nowrap; }
-.logo span { color: var(--brand); }
-.logo:hover { text-decoration: none; }
+/* The logo sits on its own cream background (its letters are drawn on it), in light and dark mode. */
+.logo { flex: none; line-height: 0; }
+.logo img { display: block; height: 40px; width: auto; border-radius: 8px; }
 .nav { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; flex: 1; }
 .nav::-webkit-scrollbar { display: none; }
 .nav a {
@@ -251,7 +251,7 @@ td .meta { color: var(--muted); font-size: .8rem; }
 
 /* ---------- login ---------- */
 .login { max-width: 380px; margin: 10vh auto; padding: 0 16px; }
-.login .logo { font-size: 1.8rem; display: block; text-align: center; margin-bottom: 18px; }
+.login-logo { display: block; width: 100%; height: auto; border-radius: 14px; box-shadow: var(--shadow); margin-bottom: 18px; }
 
 @media print {
   .topbar, .period, .actions, .btn { display: none !important; }

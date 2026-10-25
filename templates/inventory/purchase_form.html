@@ -18,7 +18,8 @@
 </div>
 {% endif %}
 
-<form method="post" enctype="multipart/form-data" class="card" id="purchase-form">
+{# The scan page renders this form at /inventory/scan/, so name the save URL explicitly. #}
+<form method="post" action="{% if purchase %}{% url 'inventory:edit' purchase.pk %}{% else %}{% url 'inventory:add' %}{% endif %}" enctype="multipart/form-data" class="card" id="purchase-form">
   {% csrf_token %}
   {% if scan_note %}<div class="note">{{ scan_note }}</div>{% endif %}
   {% for m in matches %}

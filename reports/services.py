@@ -1,4 +1,4 @@
-"""Profit & loss: sales in, daily expenses + inventory bills + salaries out."""
+"""Profit & loss: sales in, daily expenses + inventory bills + fixed costs + salaries out."""
 
 from decimal import Decimal
 
@@ -6,6 +6,7 @@ from django.db.models import Sum
 
 from core.periods import today
 from expenses.models import DailyExpense, ExpenseCategory
+from fixedcosts.services import fixed_cost
 from inventory.models import InventoryCategory, Purchase
 from payroll.models import SalaryPayment
 from payroll.services import allocate, salary_cost
@@ -67,7 +68,10 @@ def pnl(period):
     salary = salary_cost(start, end, estimate_from=tracked_from)
     salary_total = salary["total"]
 
-    total_cost = inventory_total + expense_total + salary_total
+    fixed = fixed_cost(start, end)
+    fixed_total = fixed["total"]
+
+    total_cost = inventory_total + expense_total + fixed_total + salary_total
     profit = revenue - total_cost
     food_cost = inventory_total + food_expenses
 
@@ -84,9 +88,10 @@ def pnl(period):
     inv_b = bucketise(purchases.values("bill_date").annotate(v=Sum("total")), "bill_date", "v")
     exp_b = bucketise(expenses.values("date").annotate(v=Sum("amount")), "date", "v")
     sal_b = [allocate(salary["months"], b.start, b.end) for b in period.buckets]
+    fix_b = [allocate(fixed["months"], b.start, b.end) for b in period.buckets]
     rows = []
     for i, b in enumerate(period.buckets):
-        cost = inv_b[i] + exp_b[i] + sal_b[i]
+        cost = inv_b[i] + exp_b[i] + fix_b[i] + sal_b[i]
         rows.append({
             "label": b.label,
             "start": b.start,
@@ -94,6 +99,7 @@ def pnl(period):
             "revenue": rev_b[i],
             "inventory": inv_b[i],
             "expenses": exp_b[i],
+            "fixed": fix_b[i],
             "salary": sal_b[i],
             "cost": cost,
             "profit": rev_b[i] - cost,
@@ -108,6 +114,8 @@ def pnl(period):
         "inventory_by_category": inventory_by_category,
         "expenses": expense_total,
         "expense_by_category": expense_by_category,
+        "fixed": fixed_total,
+        "fixed_by_head": fixed["by_head"],
         "salary": salary_total,
         "salary_actual": salary["actual"],
         "salary_estimated": salary["estimated"],

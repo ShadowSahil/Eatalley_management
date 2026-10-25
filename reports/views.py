@@ -16,10 +16,10 @@ def pnl_view(request):
         resp = HttpResponse(content_type="text/csv")
         resp["Content-Disposition"] = f'attachment; filename="eatalley-pnl-{period.start}-{period.end}.csv"'
         w = csv.writer(resp)
-        w.writerow(["Period", "Sales (excl. GST)", "Inventory", "Daily expenses", "Salaries", "Total cost", "Profit"])
+        w.writerow(["Period", "Sales (excl. GST)", "Inventory", "Daily expenses", "Fixed costs", "Salaries", "Total cost", "Profit"])
         for r in p["rows"]:
-            w.writerow([r["label"], r["revenue"], r["inventory"], r["expenses"], f"{r['salary']:.2f}", f"{r['cost']:.2f}", f"{r['profit']:.2f}"])
-        w.writerow(["Total", p["revenue"], p["inventory"], p["expenses"], p["salary"], p["total_cost"], p["profit"]])
+            w.writerow([r["label"], r["revenue"], r["inventory"], r["expenses"], f"{r['fixed']:.2f}", f"{r['salary']:.2f}", f"{r['cost']:.2f}", f"{r['profit']:.2f}"])
+        w.writerow(["Total", p["revenue"], p["inventory"], p["expenses"], p["fixed"], p["salary"], p["total_cost"], p["profit"]])
         return resp
 
     return render(request, "reports/pnl.html", {

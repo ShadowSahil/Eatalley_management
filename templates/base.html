@@ -13,11 +13,12 @@
 {% with section=request.resolver_match.namespace url_name=request.resolver_match.url_name %}
 <header class="topbar">
   <div class="topbar-inner">
-    <a class="logo" href="{% url 'home' %}">Eat<span>alley</span></a>
+    <a class="logo" href="{% url 'home' %}"><img src="{% static 'img/logo-wordmark.svg' %}" alt="Eatalley" width="111" height="40"></a>
     <nav class="nav">
       <a href="{% url 'expenses:entry' %}" class="{% if section == 'expenses' and url_name == 'entry' %}active{% endif %}">Daily expense</a>
       <a href="{% url 'sales:dashboard' %}" class="{% if section == 'sales' %}active{% endif %}">Sales</a>
       <a href="{% url 'inventory:list' %}" class="{% if section == 'inventory' %}active{% endif %}">Inventory</a>
+      <a href="{% url 'fixedcosts:index' %}" class="{% if section == 'fixedcosts' %}active{% endif %}">Fixed costs</a>
       <a href="{% url 'reports:pnl' %}" class="{% if section == 'reports' %}active{% endif %}">P&amp;L</a>
       <a href="{% url 'payroll:index' %}" class="{% if section == 'payroll' %}active{% endif %}">Staff</a>
     </nav>

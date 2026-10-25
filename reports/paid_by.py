@@ -11,6 +11,7 @@ from django.shortcuts import redirect, render
 from core.models import Payer
 from core.periods import parse_date
 from expenses.models import DailyExpense
+from fixedcosts.models import FixedCost
 from inventory.models import Purchase
 from opening.models import OpeningCost
 from payroll.models import SalaryPayment
@@ -21,10 +22,11 @@ ZERO = Decimal(0)
 SECTIONS = [
     ("expenses", "Daily expenses", DailyExpense.objects, "date"),
     ("inventory", "Inventory bills", Purchase.objects, "bill_date"),
+    ("fixed", "Fixed costs", FixedCost.objects, "paid_on"),
     ("salary", "Salaries", SalaryPayment.objects, "paid_on"),
     ("opening", "Opening costs", OpeningCost.objects, "date"),
 ]
-AMOUNT = {"expenses": "amount", "inventory": "total", "salary": "amount", "opening": "amount"}
+AMOUNT = {"expenses": "amount", "inventory": "total", "fixed": "amount", "salary": "amount", "opening": "amount"}
 
 
 class PayerForm(forms.ModelForm):

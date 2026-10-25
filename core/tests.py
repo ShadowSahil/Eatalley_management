@@ -51,6 +51,11 @@ class LoginTests(TestCase):
         r = self.client.get("/sales/")
         self.assertRedirects(r, "/login/?next=/sales/")
 
+    def test_health_check_is_public_and_skips_the_database(self):
+        with self.assertNumQueries(0):
+            r = self.client.get("/healthz/")
+        self.assertEqual((r.status_code, r.content), (200, b"ok"))
+
     def test_team_member_gets_full_access(self):
         admin = get_user_model().objects.create_user("owner", password="x" * 10)
         self.client.force_login(admin)

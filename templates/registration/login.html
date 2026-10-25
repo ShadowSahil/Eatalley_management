@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Log in{% endblock %}
 {% block content %}
 <div class="login">
-  <span class="logo">Eat<span>alley</span></span>
+  <img class="login-logo" src="{% static 'img/logo.svg' %}" alt="Eatalley — Neapolitan Pizzeria" width="1370" height="590">
   <div class="card">
     <h2>Team login</h2>
     {% if form.errors %}<p class="errorlist">Wrong username or password.</p>{% endif %}

@@ -2,7 +2,7 @@ from django.conf import settings
 from django.shortcuts import redirect
 from django.urls import reverse
 
-PUBLIC_PREFIXES = ("/login/", "/static/", "/admin/login/")
+PUBLIC_PREFIXES = ("/login/", "/static/", "/admin/login/", "/healthz/")
 
 
 class LoginRequiredMiddleware:
@@ -12,6 +12,6 @@ class LoginRequiredMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        if not request.user.is_authenticated and not request.path.startswith(PUBLIC_PREFIXES):
+        if not request.path.startswith(PUBLIC_PREFIXES) and not request.user.is_authenticated:
             return redirect(f"{reverse(settings.LOGIN_URL)}?next={request.get_full_path()}")
         return self.get_response(request)
