@@ -25,6 +25,7 @@ def sheet(path):
         ],
         "August": [
             [datetime(2026, 8, 21), 22655, "Partner B", "J S Foods", "Inventory", "Cheese bufallo"],
+            [datetime(2026, 8, 21), 9275, "Partner B", "Mokafarms", "Inventory", "Coffee"],
             [datetime(2026, 8, 26), 414, "Partner B", "Blinkit", "Misc", "Hit/agarbatti"],
             [datetime(2026, 8, 31), 21000, "Partner D", "Ravi", "Salary", "Ravi Kumar"],
             [datetime(2026, 8, 31), 24294, "Partner C", "Electricity", "Bill", "Electricity + Maintenance"],
@@ -73,7 +74,8 @@ class ImportSheetTests(TestCase):
         Staff.objects.create(name="Ravi Kumar", role="Chef", monthly_salary=40000)
         self.run_cmd(self.tmp.name)
         # vendor bills
-        self.assertEqual(Purchase.objects.count(), 2)
+        self.assertEqual(Purchase.objects.count(), 3)
+        self.assertEqual(Purchase.objects.get(vendor__name="Mokafarms").total, Decimal("9275"))
         js = Purchase.objects.get(vendor__name="JS Foods")
         self.assertEqual((js.total, js.paid_by.name, js.is_paid), (Decimal("22655"), "Partner B", True))
         self.assertEqual(Purchase.objects.get(vendor__name="Naveen Kumar Vegetables").notes,
@@ -113,3 +115,32 @@ class ImportSheetTests(TestCase):
         self.run_cmd("--undo")
         for m in (DailyExpense, Purchase, SalaryPayment, OpeningCost):
             self.assertFalse(m.objects.exists(), m.__name__)
+
+
+class InventoryItemTests(TestCase):
+    def test_every_importer_item_is_in_the_dropdown(self):
+        from core.management.commands.import_expense_sheet import ITEMS
+        from expenses.models import ExpenseItem
+
+        seeded = {n.lower() for n in ExpenseItem.objects.values_list("name", flat=True)}
+        missing = [name for name, *_ in ITEMS if name.lower() not in seeded and name != "Change given to customer"]
+        self.assertEqual(missing, [])
+
+    def test_comments_map_to_items(self):
+        from core.management.commands.import_expense_sheet import MIXED, classify_inventory
+
+        cases = {
+            "Coffee sachet": "Coffee sachets",
+            "Parm cheese": "Adhoc cheese",
+            "Printout , cheddar cheese": "Adhoc cheese",
+            "Tabisco": "Tabasco",
+            "Ice cubes": "Ice",
+            "Milk straw": "Straws",
+            "Coffee sachet+ice tray": "Coffee sachets",
+            "Watermelon": "Watermelon",
+            "Refined 5 kg": "Refined oil",
+            "250grm display packet": "Display packets",
+            "Milk 5 paneer 800gm": MIXED[0],
+        }
+        for comment, item in cases.items():
+            self.assertEqual(classify_inventory(comment)[0], item, comment)

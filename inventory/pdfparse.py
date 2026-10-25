@@ -185,6 +185,23 @@ def _item_columns(row):
     return None
 
 
+def _drop_tax_lines(row, cols):
+    """A single item sharing its cell with the "IGST OUTPUT / Round Off" lines below it (Sunrise bills).
+
+    "FLOUR ...\\nIGST OUTPUT\\nRound Off" | "9,750.00\\n487.50\\n0.50" -> "FLOUR ..." | "9,750.00".
+    Several items in one cell are split earlier by _unstack.
+    """
+    desc_lines = str(row[cols["description"]] or "").split("\n")
+    cut = next((i for i, ln in enumerate(desc_lines) if i and STACK_STOP.search(ln)), None)
+    if cut is None:
+        return row
+    row = list(row)
+    row[cols["description"]] = "\n".join(desc_lines[:cut])
+    amounts = [ln for ln in str(row[cols["amount"]] or "").split("\n") if ln.strip()]
+    row[cols["amount"]] = amounts[0] if amounts else ""
+    return row
+
+
 def _read_item_table(table, cols=None):
     """Return (cols, lines, totals) from one table; cols None if it isn't an item table."""
     start = 0
@@ -201,6 +218,7 @@ def _read_item_table(table, cols=None):
     for row in table[start:]:
         if len(row) <= width:
             continue
+        row = _drop_tax_lines(row, cols)
         desc = _clean(row[cols["description"]])
         if not desc:
             continue

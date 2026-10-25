@@ -7,7 +7,7 @@ Everyone logs in with their own username; all team members have the same access.
 |---|---|
 | **Daily expense** (home page) | Add several expenses at once: the date defaults to today (any earlier date can be picked), choose the item from the dropdown, then enter quantity, amount and how it was paid. The amount fills in automatically from the last price paid. New items can be added from the dropdown. |
 | **Sales** | Upload a Petpooja Excel/CSV export. Shows total and net sales, orders, average order, discounts, GST, mode of payment, order type, channel, item-wise and category-wise sales, filtered by Daily / Weekly / Monthly / Quarterly / Financial year / custom range. |
-| **Inventory** | Vendor bills (JS Foods, Sunrise, Neveen, Hyperpure, plus any others you add). Upload the PDF and the site tries to read the vendor, bill number, date and total, or enter them by hand. Tracks unpaid bills. |
+| **Inventory** | Vendor bills (JS Foods, Sunrise, Neveen, Hyperpure, Mokafarms, plus any others you add). Upload the PDF and the site tries to read the vendor, bill number, date and total, or enter them by hand. Tracks unpaid bills. |
 | **P&L** | Sales (excluding GST) minus inventory bills, daily expenses and salaries, with a statement, chart and breakdown for any period. |
 | **Opening costs** | One-time setup spending (oven, furniture, fit-out, launch), kept outside the P&L. You can keep adding to it. |
 | **Who paid** | Every expense, bill, salary and opening cost records who paid: Eatalley's own money or a partner. This page totals it per person, like the old sheet's "Per user" tab. |
