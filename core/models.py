@@ -45,3 +45,23 @@ def paid_by_field():
     return models.ForeignKey(
         Payer, null=True, blank=True, on_delete=models.PROTECT, related_name="+", verbose_name="Paid by"
     )
+
+
+class SheetImport(models.Model):
+    """One import of a month's tab from the Google Sheet (also remembers the sheet link)."""
+
+    month = models.DateField()
+    sheet_url = models.URLField(max_length=500)
+    tab = models.CharField(max_length=60)
+    rows = models.PositiveIntegerField()
+    total = models.DecimalField(max_digits=12, decimal_places=2)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.tab} {self.month:%b %Y}: {self.rows} rows"

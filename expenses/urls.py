@@ -9,6 +9,7 @@ urlpatterns = [
     path("history/", views.expense_list, name="list"),
     path("<int:pk>/edit/", views.expense_edit, name="edit"),
     path("<int:pk>/delete/", views.expense_delete, name="delete"),
+    path("import-sheet/", views.sheet_import, name="sheet_import"),
     path("items/", views.items, name="items"),
     path("items/import/", views.items_import, name="items_import"),
     path("items/<int:pk>/edit/", views.item_edit, name="item_edit"),

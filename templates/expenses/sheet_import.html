@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Import from Google Sheet{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Import from Google Sheet</h1><div class="sub">Bring one month's tab of the expense sheet into the site</div></div>
+  <a class="btn" href="{% url 'expenses:entry' %}">Back to daily expense</a>
+</div>
+
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="preview">
+    <div class="form-grid">
+      <div class="field" style="grid-column:1/-1">
+        <label for="sheet-url">Google Sheet link</label>
+        <input id="sheet-url" name="url" type="url" value="{{ url }}" placeholder="https://docs.google.com/spreadsheets/d/…" required>
+        <div class="help">The sheet must be shared as <strong>Anyone with the link → Viewer</strong>. The link is remembered for next time.</div>
+      </div>
+      <div class="field">
+        <label for="sheet-month">Month</label>
+        <input id="sheet-month" name="month" type="month" value="{{ month|date:'Y-m' }}" required>
+        <div class="help">Only the tab named after this month (e.g. <strong>{{ month|date:"F" }}</strong>) is read, and only rows dated in it.</div>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Preview</button>
+  </form>
+  <p class="muted" style="margin:.8rem 0 0">Payments to vendors on the <a href="{% url 'inventory:vendors' %}">Vendors</a> page (JS Foods, Sunrise/SFS, Naveen, Mokafarms, Hyperpure) are skipped: add their bills under Inventory. Nothing is saved until you press Import.</p>
+</div>
+
+{% if error %}<div class="note" style="background:var(--err-bg);color:var(--bad)">{{ error }}</div>{% endif %}
+
+{% if plan %}
+<div class="stats">
+  <div class="stat hero"><div class="label">To import from '{{ plan.tab }}'</div><div class="value">{{ plan.total|inr }}</div><div class="hint">{{ plan.rows|length }} row{{ plan.rows|length|pluralize }} dated {{ month|date:"F Y" }}</div></div>
+  {% for s in plan.summary %}{% if s.n %}<div class="stat"><div class="label">{{ s.label }}</div><div class="value">{{ s.amount|inr }}</div><div class="hint">{{ s.n }} row{{ s.n|pluralize }}</div></div>{% endif %}{% endfor %}
+  <div class="stat"><div class="label">Skipped: vendors</div><div class="value muted">{{ plan.vendor_total|inr }}</div><div class="hint">{{ plan.vendor_rows|length }} row{{ plan.vendor_rows|length|pluralize }} — bills go in Inventory</div></div>
+</div>
+
+{% if plan.previous %}<div class="note"><strong>{{ month|date:"F" }} was imported before</strong> ({{ plan.previous.created_at|date:"d M, H:i" }}{% if plan.previous.created_by %} by {{ plan.previous.created_by|who }}{% endif %}). Importing again <strong>replaces those {{ plan.replaces }} entries</strong> with the rows below, including any edits made to them on the site.</div>{% endif %}
+{% if plan.entered_here %}<div class="note">{{ plan.entered_here }} daily expense{{ plan.entered_here|pluralize }} for {{ month|date:"F" }} {{ plan.entered_here|pluralize:"was,were" }} entered on the site directly. The import leaves {{ plan.entered_here|pluralize:"it,them" }} alone, so make sure {{ plan.entered_here|pluralize:"it isn't,they aren't" }} also in the sheet.</div>{% endif %}
+{% if plan.problems %}<div class="note" style="background:var(--err-bg);color:var(--ink)"><strong>Rows that couldn't be read (not imported):</strong><ul style="margin:.4rem 0 0">{% for p in plan.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>{% endif %}
+{% if plan.other_month %}<div class="note"><strong>{{ plan.other_month|length }} row{{ plan.other_month|length|pluralize }} in the '{{ plan.tab }}' tab {{ plan.other_month|length|pluralize:"is,are" }} dated outside {{ month|date:"F Y" }} and won't be imported:</strong> {% for r in plan.other_month %}row {{ r.row }} ({{ r.date|date:"d M Y" }}, {{ r.amount|inr }}){% if not forloop.last %}, {% endif %}{% endfor %}.</div>{% endif %}
+
+<div class="card">
+  <div class="card-head">
+    <h2>Rows to import</h2>
+    {% if plan.rows %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="import">
+      <input type="hidden" name="url" value="{{ plan.url }}">
+      <input type="hidden" name="month" value="{{ month|date:'Y-m' }}">
+      <input type="hidden" name="digest" value="{{ plan.digest }}">
+      <button class="btn btn-primary" type="submit">Import {{ plan.rows|length }} row{{ plan.rows|length|pluralize }}</button>
+    </form>
+    {% endif %}
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th class="num">Amount</th><th class="hide-sm">Paid by</th><th>To · comment</th><th>Goes to</th></tr></thead>
+    <tbody>
+    {% for r in plan.rows %}
+      <tr>
+        <td>{{ r.date|date:"d M" }}</td>
+        <td class="num">{{ r.amount|inr }}</td>
+        <td class="hide-sm">{{ r.by }}</td>
+        <td>{{ r.to|default:"—" }}{% if r.comment %}<div class="meta">{{ r.comment }}</div>{% endif %}</td>
+        <td>{{ r.label }}</td>
+      </tr>
+    {% empty %}<tr><td colspan="5" class="empty">No rows to import for {{ month|date:"F Y" }}.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% if plan.vendor_rows %}
+  <details style="margin-top:12px">
+    <summary class="muted">Skipped vendor payments ({{ plan.vendor_rows|length }})</summary>
+    <div class="table-wrap"><table>
+      <tbody>{% for r in plan.vendor_rows %}<tr><td>{{ r.date|date:"d M" }}</td><td class="num">{{ r.amount|inr }}</td><td>{{ r.to }}{% if r.comment %}<div class="meta">{{ r.comment }}</div>{% endif %}</td><td>{{ r.label }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </details>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if history %}
+<div class="card">
+  <h2>Earlier imports</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Month</th><th>Tab</th><th class="num">Rows</th><th class="num">Amount</th><th class="hide-sm">When</th></tr></thead>
+    <tbody>{% for h in history %}<tr><td>{{ h.month|date:"F Y" }}</td><td>{{ h.tab }}</td><td class="num">{{ h.rows }}</td><td class="num">{{ h.total|inr }}</td><td class="hide-sm muted">{{ h.created_at|date:"d M, H:i" }}{% if h.created_by %} · {{ h.created_by|who }}{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
+{% endblock %}
