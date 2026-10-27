@@ -367,3 +367,45 @@ def items_import(request):
         + (f"; skipped {skipped} duplicate or blank rows." if skipped else "."),
     )
     return redirect("expenses:items")
+
+
+def sheet_import(request):
+    """Bring one month's tab of the Google Sheet expense tracker into the site.
+
+    "Preview" reads the sheet and shows where every row will go; "Import"
+    reads it again and saves, replacing an earlier import of the same month.
+    """
+    from core.models import SheetImport
+    from core.sheet_import import SheetError, import_month, plan_month
+
+    last = SheetImport.objects.first()
+    url = (request.POST.get("url") or (last.sheet_url if last else "")).strip()
+    raw = request.POST.get("month", "")
+    month = (parse_date(f"{raw}-01") if len(raw) == 7 else None) or today().replace(day=1)
+    plan, error = None, None
+    if request.method == "POST":
+        if month > today():
+            error = "That month hasn't started yet."
+        else:
+            try:
+                plan = plan_month(url, month)
+            except SheetError as e:
+                error = str(e)
+            except Exception as e:  # noqa: BLE001 - a broken sheet shouldn't be a server error
+                error = f"Couldn't read the sheet: {e}"
+        if plan and request.POST.get("action") == "import":
+            if request.POST.get("digest") != plan["digest"]:
+                messages.warning(request, "The sheet changed since the preview. Check the rows below and import again.")
+            elif not plan["rows"]:
+                error = f"There's nothing to import for {month:%B %Y}."
+            else:
+                log = import_month(plan, request.user)
+                messages.success(request, f"Imported {log.rows} rows from the '{log.tab}' tab — {format_inr(log.total)}.")
+                return redirect(f"{reverse('expenses:list')}?view=month&d={month.isoformat()}")
+    return render(request, "expenses/sheet_import.html", {
+        "url": url,
+        "month": month,
+        "plan": plan,
+        "error": error,
+        "history": SheetImport.objects.select_related("created_by")[:12],
+    })

@@ -28,6 +28,7 @@
         <div class="who">Signed in as {{ user.get_full_name|default:user.username }}</div>
         <a href="{% url 'expenses:list' %}">Expense history</a>
         <a href="{% url 'expenses:items' %}">Expense items</a>
+        <a href="{% url 'expenses:sheet_import' %}">Import from Google Sheet</a>
         <a href="{% url 'sales:upload' %}">Upload Petpooja sales</a>
         <a href="{% url 'inventory:vendors' %}">Vendors</a>
         <a href="{% url 'opening:index' %}">Opening costs</a>

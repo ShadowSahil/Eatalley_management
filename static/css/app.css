@@ -202,7 +202,7 @@ td .meta { color: var(--muted); font-size: .8rem; }
 .messages li { padding: 11px 14px; border-radius: 8px; background: var(--surface-2); }
 .messages .success { background: var(--ok-bg); }
 .messages .error { background: var(--err-bg); }
-.messages .info, .note { background: var(--warn-bg); color: var(--warn-ink); }
+.messages .info, .messages .warning, .note { background: var(--warn-bg); color: var(--warn-ink); }
 .note { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; }
 
 /* ---------- daily expense entry ---------- */

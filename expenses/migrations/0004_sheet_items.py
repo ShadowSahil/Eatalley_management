@@ -5,7 +5,7 @@ from django.db import migrations
 # those vendors are Inventory bills. Cheese, butter and cream come from JS Foods
 # and coffee beans from Mokafarms, so they are not daily expense items; cheese
 # bought elsewhere in a pinch is "Adhoc cheese".
-# Keep in step with ITEMS in core/management/commands/import_expense_sheet.py.
+# Keep in step with ITEMS in core/sheet_import.py.
 ITEMS = [
     ("Milk", "dairy", "L"),
     ("Paneer", "dairy", "kg"),
