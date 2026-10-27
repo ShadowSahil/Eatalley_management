@@ -24,7 +24,7 @@
     </div>
     <button class="btn btn-primary" type="submit">Preview</button>
   </form>
-  <p class="muted" style="margin:.8rem 0 0">Payments to vendors on the <a href="{% url 'inventory:vendors' %}">Vendors</a> page (JS Foods, Sunrise/SFS, Naveen, Mokafarms, Hyperpure) are skipped: add their bills under Inventory. Nothing is saved until you press Import.</p>
+  <p class="muted" style="margin:.8rem 0 0">Skipped: payments to vendors on the <a href="{% url 'inventory:vendors' %}">Vendors</a> page (JS Foods, Sunrise/SFS, Naveen, Mokafarms, Hyperpure), whose bills go under Inventory; and main staff salaries, which are recorded on the <a href="{% url 'payroll:index' %}">Staff</a> page. Only ad-hoc pay (helpers, labour, day wages) is imported. Nothing is saved until you press Import.</p>
 </div>
 
 {% if error %}<div class="note" style="background:var(--err-bg);color:var(--bad)">{{ error }}</div>{% endif %}
@@ -34,6 +34,7 @@
   <div class="stat hero"><div class="label">To import from '{{ plan.tab }}'</div><div class="value">{{ plan.total|inr }}</div><div class="hint">{{ plan.rows|length }} row{{ plan.rows|length|pluralize }} dated {{ month|date:"F Y" }}</div></div>
   {% for s in plan.summary %}{% if s.n %}<div class="stat"><div class="label">{{ s.label }}</div><div class="value">{{ s.amount|inr }}</div><div class="hint">{{ s.n }} row{{ s.n|pluralize }}</div></div>{% endif %}{% endfor %}
   <div class="stat"><div class="label">Skipped: vendors</div><div class="value muted">{{ plan.vendor_total|inr }}</div><div class="hint">{{ plan.vendor_rows|length }} row{{ plan.vendor_rows|length|pluralize }} — bills go in Inventory</div></div>
+  {% if plan.staff_salary_rows %}<div class="stat"><div class="label">Skipped: main staff salaries</div><div class="value muted">{{ plan.staff_salary_total|inr }}</div><div class="hint">{{ plan.staff_salary_rows|length }} row{{ plan.staff_salary_rows|length|pluralize }} — record on the Staff page</div></div>{% endif %}
 </div>
 
 {% if plan.previous %}<div class="note"><strong>{{ month|date:"F" }} was imported before</strong> ({{ plan.previous.created_at|date:"d M, H:i" }}{% if plan.previous.created_by %} by {{ plan.previous.created_by|who }}{% endif %}). Importing again <strong>replaces those {{ plan.replaces }} entries</strong> with the rows below, including any edits made to them on the site.</div>{% endif %}
@@ -69,11 +70,11 @@
     {% empty %}<tr><td colspan="5" class="empty">No rows to import for {{ month|date:"F Y" }}.</td></tr>{% endfor %}
     </tbody>
   </table></div>
-  {% if plan.vendor_rows %}
+  {% if plan.vendor_rows or plan.staff_salary_rows %}
   <details style="margin-top:12px">
-    <summary class="muted">Skipped vendor payments ({{ plan.vendor_rows|length }})</summary>
+    <summary class="muted">Skipped rows ({{ plan.skipped_n }})</summary>
     <div class="table-wrap"><table>
-      <tbody>{% for r in plan.vendor_rows %}<tr><td>{{ r.date|date:"d M" }}</td><td class="num">{{ r.amount|inr }}</td><td>{{ r.to }}{% if r.comment %}<div class="meta">{{ r.comment }}</div>{% endif %}</td><td>{{ r.label }}</td></tr>{% endfor %}</tbody>
+      <tbody>{% for r in plan.vendor_rows %}<tr><td>{{ r.date|date:"d M" }}</td><td class="num">{{ r.amount|inr }}</td><td>{{ r.to }}{% if r.comment %}<div class="meta">{{ r.comment }}</div>{% endif %}</td><td>{{ r.label }}</td></tr>{% endfor %}{% for r in plan.staff_salary_rows %}<tr><td>{{ r.date|date:"d M" }}</td><td class="num">{{ r.amount|inr }}</td><td>{{ r.to }}{% if r.comment %}<div class="meta">{{ r.comment }}</div>{% endif %}</td><td>{{ r.label }}</td></tr>{% endfor %}</tbody>
     </table></div>
   </details>
   {% endif %}
