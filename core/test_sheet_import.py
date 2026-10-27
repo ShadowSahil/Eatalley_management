@@ -48,6 +48,7 @@ OCTOBER = [
     [datetime(2026, 10, 12), 1000, "Eatalley", "Naveen kumar vegetable", "Inventory", "Veg"],
     [datetime(2026, 10, 10), 5000, "Eatalley", "Landlord", "Rent", "Chef room rent"],
     [datetime(2026, 10, 1), 500, "Eatalley", "Helper", "Salary", "Helper"],
+    [datetime(2026, 10, 1), 8000, "Eatalley", "Chef", "Salary", "Advance salary"],  # main staff: skipped
     [datetime(2026, 10, 1), 300, "Eatalley", "Electrician", "Interior", "Fan fitting"],
     ["4-October-2026", "1,200", "Eatalley", "Grocery app", "Inventory", "Paneer milk dahi"],
     [datetime(2026, 9, 30), 99, "Eatalley", "Grocery app", "Inventory", "Milk"],  # typo'd date: not October
@@ -76,13 +77,14 @@ class SheetImportTests(TestCase):
             "Daily expense · Ice",
             "Daily expense · Mixed groceries",
             "Daily expense · Mixed groceries",
+            "Daily expense · Repairs & fittings",
             "Fixed cost · Staff room rent",
-            "Opening cost · Interior",
             "Salary · Adhoc helper",
         ])
+        self.assertEqual([r["amount"] for r in plan["staff_salary_rows"]], [Decimal("8000")])
         self.assertEqual(sorted(v["vendor"] for v in plan["vendor_rows"]),
                          ["Hyperpure", "JS Foods", "Mokafarms", "Naveen Kumar Vegetables", "Sunrise Food Services"])
-        self.assertEqual([row["row"] for row in plan["other_month"]], [14])
+        self.assertEqual([row["row"] for row in plan["other_month"]], [15])
         self.assertEqual(len(plan["problems"]), 1)
         self.assertEqual(plan["total"], Decimal("7700"))
         self.assertFalse(DailyExpense.objects.exists())  # preview saves nothing
@@ -91,17 +93,18 @@ class SheetImportTests(TestCase):
         digest = self.post(action="preview").context["plan"]["digest"]
         r = self.post(action="import", digest=digest)
         self.assertRedirects(r, "/expenses/history/?view=month&d=2026-10-01")
-        self.assertEqual(DailyExpense.objects.count(), 4)
+        self.assertEqual(DailyExpense.objects.count(), 5)
         self.assertEqual(FixedCost.objects.get().amount, Decimal("5000"))
-        self.assertEqual(SalaryPayment.objects.get().staff.name, "Adhoc helper")
-        self.assertEqual(OpeningCost.objects.get().category, "interior")
+        self.assertEqual(SalaryPayment.objects.get().staff.name, "Adhoc helper")  # the chef's advance is skipped
+        self.assertFalse(OpeningCost.objects.exists())  # fittings bought while running count in the P&L
+        self.assertEqual(DailyExpense.objects.get(item__name="Repairs & fittings").amount, Decimal("300"))
         self.assertFalse(Purchase.objects.exists())  # vendor rows aren't imported at all
         ice = DailyExpense.objects.get(item__name="Ice")
         self.assertEqual((ice.payment_mode, ice.paid_by.name, ice.source), ("upi", "Eatalley", "gsheet:2026-10"))
         self.assertEqual(DailyExpense.objects.get(amount=Decimal("1200")).date, date(2026, 10, 4))
 
         self.post(action="import", digest=digest)  # again: replaced, not doubled
-        self.assertEqual(DailyExpense.objects.count(), 4)
+        self.assertEqual(DailyExpense.objects.count(), 5)
         self.assertEqual(SalaryPayment.objects.count(), 1)
         self.assertEqual(SheetImport.objects.count(), 2)
         r = self.client.get("/expenses/import-sheet/")

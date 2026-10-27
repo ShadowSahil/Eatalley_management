@@ -9,12 +9,16 @@ Where a row goes:
     Mokafarms, Hyperpure) -> skipped by the monthly import; their bills are
     added under Inventory. (The one-off Aug–Oct command files them as bills.)
   * Type "Bill" / "Rent", and staff room rent  -> Fixed costs
-  * Type "Salary"                              -> Staff payments (someone on the
-    Staff page with a monthly salary, else "Adhoc helper")
-  * Type "Equipments" / "Interior"             -> Opening costs
+  * Type "Salary": helpers / labour / day-wage   -> "Adhoc helper" payments;
+    main staff are skipped (their pay is recorded on the Staff page)
+  * Type "Equipments" / "Interior"             -> Daily expenses (kitchen
+    equipment, repairs), so they count in the P&L
   * everything else                            -> Daily expenses; Inventory rows
     get the item named in the comment (item list seeded by
     expenses/migrations/0004_sheet_items.py)
+The one-off Aug–Oct command covers the set-up period instead
+(opening_period=True): Equipments / Interior are Opening costs, and every
+salary is filed (monthly staff on the Staff page, everyone else Adhoc helper).
 """
 
 import hashlib
@@ -293,16 +297,31 @@ def match_staff(to, monthly_staff):
     return None
 
 
-def route(r, vendor_of, monthly_staff):
+ADHOC_SALARY = re.compile(r"helper|labou?r|\bdays?\b|daily|ad-?hoc", re.I)
+# After opening, equipment and fittings bought for the running café are day-to-day costs.
+RUNNING_ITEMS = {
+    "interior": ("Repairs & fittings", "repairs", "nos"),
+    "equipments": ("Kitchen equipment & tools", "other", "nos"),
+    "equipment": ("Kitchen equipment & tools", "other", "nos"),
+}
+
+
+def route(r, vendor_of, monthly_staff, opening_period=False):
     """Decide where a row goes: sets r["dest"] and r["label"] (shown in previews)."""
     kind = r["type"]
     vendor = vendor_of(r["to"]) if kind != "salary" else None
     if vendor:
         r.update(dest="vendor", vendor=vendor.name, label=f"{vendor.name} (vendor)")
-    elif kind == "salary":
+    elif kind == "salary" and opening_period:
         staff = match_staff(r["to"], monthly_staff)
         r.update(dest="salary", staff=staff, label=f"Salary · {staff.name if staff else ADHOC[0]}")
-    elif kind in ("equipments", "equipment", "interior"):
+    elif kind == "salary" and ADHOC_SALARY.search(f"{r['to']} {r['comment']}"):
+        r.update(dest="salary", staff=None, label=f"Salary · {ADHOC[0]}")
+    elif kind == "salary":
+        r.update(dest="staff_salary", label="Main staff salary (record it on the Staff page)")
+    elif kind in RUNNING_ITEMS and not opening_period:
+        r.update(dest="expenses", item=RUNNING_ITEMS[kind], label=f"Daily expense · {RUNNING_ITEMS[kind][0]}")
+    elif kind in RUNNING_ITEMS:
         category = "interior" if kind == "interior" else "equipment"
         r.update(dest="opening", category=category, label=f"Opening cost · {category.title()}")
     else:
@@ -462,7 +481,7 @@ def plan_month(url, month):
     monthly_staff = list(Staff.objects.filter(monthly_salary__gt=0))
     for r in in_month:
         route(r, vendor_of, monthly_staff)
-    to_import = [r for r in in_month if r["dest"] != "vendor"]
+    to_import = [r for r in in_month if r["dest"] not in ("vendor", "staff_salary")]
 
     groups = defaultdict(list)
     for r in in_month:
@@ -480,6 +499,9 @@ def plan_month(url, month):
         ],
         "total": sum((r["amount"] for r in to_import), ZERO),
         "vendor_total": sum((r["amount"] for r in groups["vendor"]), ZERO),
+        "staff_salary_rows": groups["staff_salary"],
+        "staff_salary_total": sum((r["amount"] for r in groups["staff_salary"]), ZERO),
+        "skipped_n": len(groups["vendor"]) + len(groups["staff_salary"]),
         "digest": digest,
         "previous": SheetImport.objects.filter(month=month).order_by("-created_at").first(),
         "replaces": sum(m.objects.filter(source=source).count() for m in IMPORTED_MODELS),

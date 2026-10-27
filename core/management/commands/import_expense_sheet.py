@@ -81,7 +81,7 @@ class Command(BaseCommand):
         vendor_of = vendor_matcher()
         monthly_staff = list(Staff.objects.filter(monthly_salary__gt=0))
         for r in monthly:
-            route(r, vendor_of, monthly_staff)
+            route(r, vendor_of, monthly_staff, opening_period=True)
             plan[r["dest"]].append(r)
         for r in opening:
             r.update(dest="opening", category=OPENING_CATEGORIES.get(r["type"], "misc"))
