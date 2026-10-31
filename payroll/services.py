@@ -5,7 +5,7 @@ from django.db.models import Sum
 
 from core.periods import add_months, month_end, today
 
-from .models import SalaryPayment, Staff
+from .models import Leave, SalaryPayment, Staff
 
 ZERO = Decimal(0)
 
@@ -88,3 +88,11 @@ def allocate(months, start, end):
         if lo <= hi:
             total += m["per_day"] * ((hi - lo).days + 1)
     return total
+
+
+def leave_days(start, end):
+    """{staff_id: leave days between start and end}, counting only the part of each leave inside the range."""
+    days = defaultdict(lambda: ZERO)
+    for leave in Leave.objects.filter(start__lte=end, end__gte=start):
+        days[leave.staff_id] += leave.days_between(start, end)
+    return days

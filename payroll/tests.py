@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from payroll.models import SalaryPayment, Staff
+from payroll.models import Leave, SalaryPayment, Staff
 from payroll.services import salary_cost
 
 
@@ -59,3 +59,47 @@ class PayAllTests(TestCase):
         self.assertEqual(
             SalaryPayment.objects.get(kind="salary").amount, Decimal("25000")
         )
+
+
+class LeaveTests(TestCase):
+    def setUp(self):
+        self.client.force_login(get_user_model().objects.create_user("owner"))
+        self.chef = Staff.objects.create(name="Chef A", monthly_salary=Decimal("20000"), leave_allowance=Decimal("2"))
+
+    def record(self, **data):
+        return self.client.post("/staff/leave/", {"staff": self.chef.pk, "kind": "leave", **data})
+
+    def test_record_and_count_against_allowance(self):
+        self.assertRedirects(self.record(start="2026-10-05"), "/staff/?month=2026-10")  # 'To' defaults to 'From'
+        self.record(start="2026-10-12", half_day="on")
+        self.record(start="2026-10-30", end="2026-11-02")  # crosses the month end: 2 days in Oct, 2 in Nov
+        r = self.client.get("/staff/?month=2026-10")
+        row = next(x for x in r.context["rows"] if x["staff"] == self.chef)
+        self.assertEqual((row["leave_days"], row["over_allowance"]), (Decimal("3.5"), Decimal("1.5")))
+        self.assertEqual(len(r.context["leaves"]), 3)
+        r = self.client.get("/staff/?month=2026-11")
+        self.assertEqual(next(x for x in r.context["rows"] if x["staff"] == self.chef)["leave_days"], Decimal("2"))
+        # tracking only: the balance still owes the full salary
+        self.assertEqual(row["balance"], Decimal("20000"))
+
+    def test_bad_leaves_are_refused(self):
+        self.record(start="2026-10-05", end="2026-10-06")
+        r = self.record(start="2026-10-06")
+        self.assertContains(r, "already has leave recorded")
+        r = self.record(start="2026-10-10", end="2026-10-09")
+        self.assertContains(r, "can&#x27;t be before")
+        r = self.record(start="2026-10-10", end="2026-10-11", half_day="on")
+        self.assertContains(r, "A half day is a single day")
+        self.assertEqual(Leave.objects.count(), 1)
+
+    def test_edit_delete_and_staff_page(self):
+        self.record(start="2026-10-05")
+        lv = Leave.objects.get()
+        self.client.post(f"/staff/leave/{lv.pk}/edit/", {"staff": self.chef.pk, "kind": "sick", "start": "2026-10-05",
+                                                         "end": "2026-10-07"})
+        lv.refresh_from_db()
+        self.assertEqual((lv.kind, lv.days), ("sick", 3))
+        r = self.client.get(f"/staff/{self.chef.pk}/edit/")
+        self.assertContains(r, "Leave history")
+        self.client.post(f"/staff/leave/{lv.pk}/delete/")
+        self.assertFalse(Leave.objects.exists())
