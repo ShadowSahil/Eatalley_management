@@ -35,6 +35,8 @@ class SaleOrder(models.Model):
     order_type = models.CharField(max_length=50, blank=True)
     source = models.CharField(max_length=50, blank=True, help_text="Area / channel, e.g. Zomato, Swiggy")
     payment_mode = models.CharField(max_length=50, blank=True)
+    customer_name = models.CharField(max_length=100, blank=True)
+    customer_phone = models.CharField(max_length=15, blank=True, db_index=True, help_text="Digits only; Indian numbers without +91")
     status = models.CharField(max_length=30, blank=True)
     is_cancelled = models.BooleanField(default=False)
     gross_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)

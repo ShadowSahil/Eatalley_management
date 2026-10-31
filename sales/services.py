@@ -137,3 +137,26 @@ def sales_summary(period):
         "trend": trend,
         "days_with_sales": len(revenue),
     }
+
+
+def customer_list(start=None, end=None):
+    """Customers from the Petpooja order reports, one row per phone number.
+
+    Orders without a phone are grouped by name. Cancelled orders aren't counted.
+    The name shown is the latest one entered for that number.
+    """
+    qs = SaleOrder.objects.filter(is_cancelled=False).exclude(customer_name="", customer_phone="")
+    if start:
+        qs = qs.filter(date__gte=start)
+    if end:
+        qs = qs.filter(date__lte=end)
+    customers = {}
+    for o in qs.order_by("date", "time").only("date", "customer_name", "customer_phone", "total"):
+        key = o.customer_phone or f"name:{o.customer_name.lower()}"
+        c = customers.setdefault(key, {"name": "", "phone": o.customer_phone, "orders": 0, "spent": ZERO,
+                                       "first": o.date, "last": o.date})
+        c["name"] = o.customer_name or c["name"]
+        c["orders"] += 1
+        c["spent"] += o.total
+        c["last"] = o.date
+    return list(customers.values())
