@@ -4,6 +4,7 @@
 <div class="page-head">
   <div><h1>Staff &amp; salary</h1><div class="sub">Salaries feed into the P&amp;L</div></div>
   <div class="actions">
+    <a class="btn" href="{% url 'payroll:leave' %}">Record leave</a>
     <a class="btn" href="{% url 'payroll:pay' %}?month={{ month|date:'Y-m' }}&kind=advance">Record advance</a>
     <a class="btn btn-primary" href="{% url 'payroll:pay' %}?month={{ month|date:'Y-m' }}">Record payment</a>
   </div>
@@ -18,7 +19,7 @@
 
 <div class="stats">
   <div class="stat hero"><div class="label">Paid for {{ month|date:"M Y" }}</div><div class="value">{{ total_paid|inr }}</div><div class="hint">salary, advances &amp; bonus</div></div>
-  <div class="stat"><div class="label">Monthly salary bill</div><div class="value">{{ total_salary|inr }}</div><div class="hint">active staff</div></div>
+  <div class="stat"><div class="label">Salary for {{ month|date:"M Y" }}</div><div class="value">{{ total_salary|inr }}</div><div class="hint">active staff, pro-rated for joining/leaving</div></div>
   <div class="stat"><div class="label">Still to pay</div><div class="value {% if total_balance %}neg{% endif %}">{{ total_balance|inr }}</div>
     {% if total_balance %}<form method="post" action="{% url 'payroll:pay_all' %}" data-confirm="Record the remaining salary for everyone as paid today?">{% csrf_token %}<input type="hidden" name="month" value="{{ month|date:'Y-m-d' }}"><button class="btn-link" type="submit">Mark all as paid</button></form>{% endif %}
   </div>
@@ -27,21 +28,42 @@
 <div class="card">
   <h2>Staff</h2>
   <div class="table-wrap"><table>
-    <thead><tr><th>Name</th><th class="num">Monthly salary</th><th class="num">Advance</th><th class="num">Salary paid</th><th class="num hide-sm">Bonus</th><th class="num">Balance</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th class="num">Salary for {{ month|date:"M" }}</th><th class="num">Advance</th><th class="num">Salary paid</th><th class="num hide-sm">Bonus</th><th class="num">Leaves</th><th class="num">Balance</th><th></th></tr></thead>
     <tbody>
     {% for r in rows %}
       <tr{% if not r.staff.is_active %} style="opacity:.55"{% endif %}>
         <td><a href="{% url 'payroll:staff_edit' r.staff.pk %}">{{ r.staff.name }}</a><div class="meta">{{ r.staff.role|default:"" }}{% if not r.staff.is_active %} · left{% endif %}</div></td>
-        <td class="num">{{ r.staff.monthly_salary|inr }}</td>
+        <td class="num">{{ r.due|inr }}{% if r.days < 30 %}<div class="meta">{{ r.days }} of 30 days · {{ r.staff.monthly_salary|inr }}/month</div>{% endif %}</td>
         <td class="num">{% if r.advance %}{{ r.advance|inr }}{% else %}<span class="muted">—</span>{% endif %}</td>
         <td class="num">{% if r.salary_paid %}{{ r.salary_paid|inr }}{% else %}<span class="muted">—</span>{% endif %}</td>
         <td class="num hide-sm">{% if r.bonus %}{{ r.bonus|inr }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="num"><a href="{% url 'payroll:leave' %}?staff={{ r.staff.pk }}" title="Record leave"{% if r.over_allowance %} class="neg"{% endif %}>{{ r.leave_days|floatformat:"-1" }} / {{ r.staff.leave_allowance|floatformat:"-1" }}</a>{% if r.over_allowance %}<div class="meta neg">{{ r.over_allowance|floatformat:"-1" }} over</div>{% endif %}</td>
         <td class="num">{% if r.balance %}<span class="neg">{{ r.balance|inr }}</span>{% else %}<span class="pos">✓ Paid</span>{% endif %}</td>
         <td class="num">{% if r.balance %}<a class="btn btn-sm" href="{% url 'payroll:pay' %}?month={{ month|date:'Y-m' }}&staff={{ r.staff.pk }}&amount={{ r.balance|floatformat:'0u' }}">Pay</a>{% endif %}</td>
       </tr>
-    {% empty %}<tr><td colspan="7" class="empty">No staff yet — add them below.</td></tr>{% endfor %}
+    {% empty %}<tr><td colspan="8" class="empty">No staff yet — add them below.</td></tr>{% endfor %}
     </tbody>
   </table></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Leaves in {{ month|date:"F Y" }}</h2><a class="btn btn-sm" href="{% url 'payroll:leave' %}">Record leave</a></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Staff</th><th>Dates</th><th class="num">Days</th><th class="hide-sm">Type</th><th class="hide-sm">Note</th><th></th></tr></thead>
+    <tbody>
+    {% for lv in leaves %}
+      <tr>
+        <td>{{ lv.staff }}</td>
+        <td>{{ lv.start|date:"d M" }}{% if lv.end != lv.start %} – {{ lv.end|date:"d M" }}{% endif %}{% if lv.half_day %} <span class="badge">half day</span>{% endif %}</td>
+        <td class="num">{{ lv.days|floatformat:"-1" }}</td>
+        <td class="hide-sm">{{ lv.get_kind_display }}</td>
+        <td class="hide-sm">{{ lv.note|default:"" }}</td>
+        <td class="num"><a class="btn btn-sm" href="{% url 'payroll:leave_edit' lv.pk %}">Edit</a></td>
+      </tr>
+    {% empty %}<tr><td colspan="6" class="empty">No leaves recorded for {{ month|date:"F Y" }}.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <p class="muted" style="margin:.6rem 0 0;font-size:.85rem">Leaves are counted against each person's allowance (days per month, set on their page). They don't change salary or balances.</p>
 </div>
 
 <div class="grid grid-2">

@@ -1,7 +1,9 @@
+from decimal import ROUND_HALF_UP, Decimal
+
 from django.db import models
 
 from core.models import TrackedModel, paid_by_field
-from core.periods import today
+from core.periods import month_end, today
 from expenses.models import PAYMENT_MODES
 
 
@@ -13,6 +15,10 @@ class Staff(models.Model):
     joined_on = models.DateField(null=True, blank=True)
     left_on = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    leave_allowance = models.DecimalField(
+        "Leave days per month", max_digits=4, decimal_places=1, default=4,
+        help_text="Days off allowed each month (weekly offs included). For tracking only: salary isn't changed.",
+    )
     notes = models.CharField(max_length=200, blank=True)
 
     class Meta:
@@ -28,6 +34,30 @@ class Staff(models.Model):
         if self.left_on and self.left_on < start:
             return False
         return True
+
+    def days_worked(self, month, until=None):
+        """Days worked in a month on a fixed 30-day basis (a full month is 30 days).
+
+        The joining day counts as worked; in the leaving month, work runs to
+        the leaving day. The 31st, or the last day of February, counts as the 30th.
+        Joined 16 Oct -> 15 days (16th–30th). `until` stops the count early
+        (e.g. today, for the current month).
+        """
+        m_end = month_end(month)
+        start = max(month, self.joined_on or month)
+        end = min(until or m_end, m_end, self.left_on or m_end)
+        if start > end:
+            return 0
+
+        def day(d):
+            return 30 if d == m_end else min(d.day, 30)
+
+        return max(day(end) - day(start) + 1, 0)
+
+    def salary_for(self, month, until=None):
+        """Salary owed for a month: monthly salary x days worked / 30, to the rupee."""
+        days = self.days_worked(month, until)
+        return (Decimal(str(self.monthly_salary)) * days / 30).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
 class SalaryPayment(TrackedModel):
@@ -55,3 +85,37 @@ class SalaryPayment(TrackedModel):
 
     def __str__(self):
         return f"{self.staff} {self.month:%b %Y} ₹{self.amount}"
+
+
+class Leave(TrackedModel):
+    """Days a staff member was off. Tracked against their monthly allowance; salary isn't changed."""
+
+    KINDS = [
+        ("leave", "Leave / day off"),
+        ("sick", "Sick"),
+        ("other", "Other"),
+    ]
+
+    staff = models.ForeignKey(Staff, on_delete=models.CASCADE, related_name="leaves")
+    start = models.DateField("From", default=today)
+    end = models.DateField("To", default=today, help_text="Same as From for a single day")
+    half_day = models.BooleanField(default=False, help_text="Only for a single day")
+    kind = models.CharField("Type", max_length=10, choices=KINDS, default="leave")
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["-start"]
+
+    def __str__(self):
+        return f"{self.staff} {self.start:%d %b}" + (f"–{self.end:%d %b}" if self.end != self.start else "")
+
+    @property
+    def days(self):
+        return Decimal("0.5") if self.half_day else Decimal((self.end - self.start).days + 1)
+
+    def days_between(self, start, end):
+        """Leave days falling between two dates (a leave can cross a month end)."""
+        lo, hi = max(self.start, start), min(self.end, end)
+        if lo > hi:
+            return Decimal(0)
+        return Decimal("0.5") if self.half_day else Decimal((hi - lo).days + 1)

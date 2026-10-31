@@ -11,8 +11,9 @@ from core.models import Payer
 from core.periods import add_months, month_end, parse_date, today
 from core.templatetags.money import format_inr
 
-from .forms import PaymentForm, StaffForm
-from .models import SalaryPayment, Staff
+from .forms import LeaveForm, PaymentForm, StaffForm
+from .models import Leave, SalaryPayment, Staff
+from .services import leave_days
 
 ZERO = Decimal(0)
 
@@ -35,19 +36,25 @@ def index(request):
     for p in payments:
         paid[p.staff_id][p.kind] += p.amount
 
+    off = leave_days(month, m_end)
     rows = []
     for s in Staff.objects.all():
-        if not s.employed_during(month, m_end) and s.id not in paid:
+        if not s.employed_during(month, m_end) and s.id not in paid and s.id not in off:
             continue
         got = paid.get(s.id, {})
         total_paid = sum(got.values(), ZERO)
+        due = s.salary_for(month)
         rows.append({
             "staff": s,
+            "due": due,
+            "days": s.days_worked(month),
+            "leave_days": off.get(s.id, ZERO),
+            "over_allowance": max(off.get(s.id, ZERO) - s.leave_allowance, ZERO),
             "salary_paid": got.get("salary", ZERO),
             "advance": got.get("advance", ZERO),
             "bonus": got.get("bonus", ZERO),
             "total_paid": total_paid,
-            "balance": max(s.monthly_salary - got.get("salary", ZERO) - got.get("advance", ZERO), ZERO),
+            "balance": max(due - got.get("salary", ZERO) - got.get("advance", ZERO), ZERO),
         })
 
     return render(request, "payroll/index.html", {
@@ -57,9 +64,10 @@ def index(request):
         "rows": rows,
         "payments": payments,
         "total_paid": payments.aggregate(v=Sum("amount"))["v"] or ZERO,
-        "total_salary": sum((r["staff"].monthly_salary for r in rows if r["staff"].is_active), ZERO),
+        "total_salary": sum((r["due"] for r in rows if r["staff"].is_active), ZERO),
         "total_balance": sum((r["balance"] for r in rows), ZERO),
         "staff_form": StaffForm(prefix="staff"),
+        "leaves": Leave.objects.filter(start__lte=m_end, end__gte=month).select_related("staff").order_by("start"),
     })
 
 
@@ -80,7 +88,19 @@ def staff_edit(request, pk):
         messages.success(request, f"Saved {staff.name}.")
         return redirect("payroll:index")
     history = staff.payments.order_by("-month", "-paid_on")[:24]
-    return render(request, "payroll/staff_edit.html", {"form": form, "staff": staff, "history": history})
+    # Leave days per month for the last 12 months, against the allowance.
+    this_month = today().replace(day=1)
+    leave_months = []
+    for i in range(12):
+        m = add_months(this_month, -i)
+        if staff.joined_on and month_end(m) < staff.joined_on:
+            break
+        days = leave_days(m, month_end(m)).get(staff.id, ZERO)
+        leave_months.append({"month": m, "days": days, "over": max(days - staff.leave_allowance, ZERO)})
+    return render(request, "payroll/staff_edit.html", {
+        "form": form, "staff": staff, "history": history,
+        "leaves": staff.leaves.all()[:30], "leave_months": leave_months,
+    })
 
 
 def payment_form(request, pk=None):
@@ -129,7 +149,7 @@ def pay_all(request):
         if not s.employed_during(month, m_end):
             continue
         done = SalaryPayment.objects.filter(staff=s, month=month, kind__in=["salary", "advance"]).aggregate(v=Sum("amount"))["v"] or ZERO
-        balance = s.monthly_salary - done
+        balance = s.salary_for(month) - done
         if balance > 0:
             SalaryPayment.objects.create(
                 staff=s, month=month, kind="salary", amount=balance, paid_on=today(),
@@ -142,3 +162,37 @@ def pay_all(request):
     else:
         messages.info(request, "Everyone is already paid for this month.")
     return redirect(_url(month))
+
+
+def leave_form(request, pk=None):
+    leave = get_object_or_404(Leave, pk=pk) if pk else None
+    initial = {}
+    if not leave:
+        day = parse_date(request.GET.get("date"), today())
+        initial = {"start": day, "end": day}
+        if request.GET.get("staff", "").isdigit():
+            initial["staff"] = int(request.GET["staff"])
+    form = LeaveForm(request.POST or None, instance=leave, initial=initial)
+    if request.method == "POST" and form.is_valid():
+        lv = form.save(commit=False)
+        if not leave:
+            lv.created_by = request.user
+        lv.save()
+        days = f"{lv.days.normalize():f} day{'s' if lv.days != 1 else ''}"
+        messages.success(request, f"{'Saved' if leave else 'Recorded'} leave for {lv.staff}: {days} from {lv.start:%d %b}.")
+        return redirect(_url(lv.start.replace(day=1)))
+    month = (leave.start if leave else initial["start"]).replace(day=1)
+    return render(request, "core/form_page.html", {
+        "form": form,
+        "title": "Edit leave" if leave else "Record leave",
+        "back_url": _url(month),
+        "delete_url": reverse("payroll:leave_delete", args=[leave.pk]) if leave else None,
+    })
+
+
+@require_POST
+def leave_delete(request, pk):
+    lv = get_object_or_404(Leave, pk=pk)
+    lv.delete()
+    messages.success(request, f"Deleted leave for {lv.staff} ({lv.start:%d %b}).")
+    return redirect(_url(lv.start.replace(day=1)))

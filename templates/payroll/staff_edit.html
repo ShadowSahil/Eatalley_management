@@ -15,4 +15,20 @@
     </table></div>
   </div>
 </div>
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Leaves per month</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Month</th><th class="num">Days off</th><th class="num">Allowance</th><th></th></tr></thead>
+      <tbody>{% for m in leave_months %}<tr><td>{{ m.month|date:"F Y" }}</td><td class="num{% if m.over %} neg{% endif %}">{{ m.days|floatformat:"-1" }}</td><td class="num muted">{{ staff.leave_allowance|floatformat:"-1" }}</td><td>{% if m.over %}<span class="neg">{{ m.over|floatformat:"-1" }} over</span>{% endif %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Leave history</h2><a class="btn btn-sm" href="{% url 'payroll:leave' %}?staff={{ staff.pk }}">Record leave</a></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Dates</th><th class="num">Days</th><th>Type</th><th class="hide-sm">Note</th></tr></thead>
+      <tbody>{% for lv in leaves %}<tr><td><a href="{% url 'payroll:leave_edit' lv.pk %}">{{ lv.start|date:"d M Y" }}{% if lv.end != lv.start %} – {{ lv.end|date:"d M" }}{% endif %}</a>{% if lv.half_day %} <span class="badge">half day</span>{% endif %}</td><td class="num">{{ lv.days|floatformat:"-1" }}</td><td>{{ lv.get_kind_display }}</td><td class="hide-sm">{{ lv.note|default:"" }}</td></tr>{% empty %}<tr><td colspan="4" class="empty">No leaves recorded.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+</div>
 {% endblock %}

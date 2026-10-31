@@ -5,7 +5,7 @@ from django.db.models import Sum
 
 from core.periods import add_months, month_end, today
 
-from .models import SalaryPayment, Staff
+from .models import Leave, SalaryPayment, Staff
 
 ZERO = Decimal(0)
 
@@ -22,7 +22,8 @@ def salary_cost(start, end, as_of=None, estimate_from=None):
       * until then the month (if it has started) is estimated at their monthly
         salary, so the P&L isn't flattered by salaries not yet paid. Advances
         already paid count as the actual part of that estimate. In the current
-        month only the days worked so far are estimated (18 Oct = 18/31).
+        month only the days worked so far are estimated (18 Oct = 18/30), and a
+        joining or leaving month only from/to that day (Staff.salary_for).
 
     Months before `estimate_from` (when the business started using the app)
     are never estimated.
@@ -52,14 +53,13 @@ def salary_cost(start, end, as_of=None, estimate_from=None):
         share = Decimal(overlap) / Decimal(m_end.day)
         can_estimate = m <= as_of and (estimate_from is None or m >= estimate_from.replace(day=1))
         actual = estimate = ZERO
-        worked = Decimal(min(as_of, m_end).day) / Decimal(m_end.day) if m <= as_of else ZERO
         staff_ids = {sid for (sid, mm) in paid if mm == m}
         staff_ids |= {s.id for s in staff if s.employed_during(m, m_end)} if can_estimate else set()
         for sid in staff_ids:
             got = paid.get((sid, m), ZERO)
             actual += got
             if can_estimate and (sid, m) not in settled and sid in by_id and by_id[sid].employed_during(m, m_end):
-                estimate += max(by_id[sid].monthly_salary * worked - got, ZERO)
+                estimate += max(by_id[sid].salary_for(m, until=as_of) - got, ZERO)
         months.append({
             "month": m,
             "end": m_end,
@@ -88,3 +88,11 @@ def allocate(months, start, end):
         if lo <= hi:
             total += m["per_day"] * ((hi - lo).days + 1)
     return total
+
+
+def leave_days(start, end):
+    """{staff_id: leave days between start and end}, counting only the part of each leave inside the range."""
+    days = defaultdict(lambda: ZERO)
+    for leave in Leave.objects.filter(start__lte=end, end__gte=start):
+        days[leave.staff_id] += leave.days_between(start, end)
+    return days
