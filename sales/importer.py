@@ -35,6 +35,9 @@ ORDER_FIELDS = {
     "payment_mode": ["payment type", "payment mode", "payment method", "settlement mode", "mode of payment", "payment"],
     "payment_description": ["payment description", "payment details", "payment remarks"],
     "status": ["status", "order status"],
+    "customer_name": ["customer name", "customer", "guest name", "client name"],
+    "customer_phone": ["customer phone", "customer mobile", "customer number", "customer contact", "mobile", "mobile no",
+                       "mobile number", "phone", "phone no", "phone number", "contact no", "contact number"],
     "gross_amount": ["my amount", "sub total", "subtotal", "gross amount", "gross sales", "item total", "core amount"],
     "discount": ["discount", "total discount", "discount amount", "discounts"],
     "tax": ["total tax", "tax", "taxes", "gst", "total gst"],
@@ -281,6 +284,8 @@ def parse(rows, xls_datemode=None, fallback_date=None):
                 order_type=re.sub(r"\s*\(.*\)\s*$", "", str(g("order_type") or "")),
                 source=str(g("source") or ""),
                 payment_mode=str(g("payment_mode") or "Unknown").strip() or "Unknown",
+                customer_name=" ".join(str(g("customer_name") or "").split())[:100],
+                customer_phone=clean_phone(g("customer_phone")),
                 status=status,
                 is_cancelled=bool(re.search(r"cancel|void|reject|complimentary", status, re.I)),
                 gross_amount=to_decimal(g("gross_amount")),
@@ -312,6 +317,18 @@ def parse(rows, xls_datemode=None, fallback_date=None):
         for r in result.records:
             _settle_payments(r)
     return result
+
+
+def clean_phone(value):
+    """'+91 98765-43210', 9876543210.0 (from Excel), '09876543210' -> '9876543210'."""
+    if isinstance(value, float):
+        value = int(value)
+    digits = re.sub(r"\D", "", str(value or ""))
+    if len(digits) == 12 and digits.startswith("91"):
+        digits = digits[2:]
+    elif len(digits) == 11 and digits.startswith("0"):
+        digits = digits[1:]
+    return digits[:15] if len(digits) >= 8 else ""
 
 
 def _invoice(value):

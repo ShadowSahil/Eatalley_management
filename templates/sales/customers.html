@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Customers{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Customers</h1><div class="sub">Names and numbers from the Petpooja order reports uploaded under Sales</div></div>
+  <div class="actions">
+    <a class="btn" href="{% url 'sales:upload' %}">Upload Petpooja sales</a>
+    <a class="btn btn-primary" href="{% query format='csv' %}">Download CSV</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat hero"><div class="label">{% if filtered %}Matching customers{% else %}Customers{% endif %}</div><div class="value">{{ customers|length }}</div><div class="hint">{{ with_phone }} with a phone number</div></div>
+  <div class="stat"><div class="label">Came back</div><div class="value">{{ repeat }}</div><div class="hint">more than one order</div></div>
+  <div class="stat"><div class="label">Orders with customer details</div><div class="value">{{ orders_with_customer }}</div><div class="hint">of {{ orders_total }} order{{ orders_total|pluralize }}{% if orders_total %} ({{ orders_with_customer|pct:orders_total }}){% endif %}</div></div>
+</div>
+
+<form method="get" class="period">
+  <input name="q" value="{{ f.q }}" placeholder="Search name or number" style="max-width:220px">
+  <input type="date" name="start" value="{{ f.start|date:'Y-m-d' }}" aria-label="Orders from">
+  <span class="muted">to</span>
+  <input type="date" name="end" value="{{ f.end|date:'Y-m-d' }}" aria-label="Orders to">
+  <select name="sort" aria-label="Sort by">{% for k, label in sorts %}<option value="{{ k }}" {% if f.sort == k %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  <button class="btn btn-sm" type="submit">Show</button>
+  {% if filtered %}<a class="btn btn-sm" href="?">Clear</a>{% endif %}
+</form>
+
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Name</th><th>Phone</th><th class="num">Orders</th><th class="num">Spent</th><th class="hide-sm">First order</th><th>Last order</th></tr></thead>
+    <tbody>
+    {% for c in customers %}
+      <tr>
+        <td>{{ c.name|default:"—" }}</td>
+        <td>{% if c.phone %}<a href="tel:{{ c.phone }}">{{ c.phone }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="num">{{ c.orders }}</td>
+        <td class="num">{{ c.spent|inr }}</td>
+        <td class="hide-sm">{{ c.first|date:"d M Y" }}</td>
+        <td>{{ c.last|date:"d M Y" }}</td>
+      </tr>
+    {% empty %}<tr><td colspan="6" class="empty">{% if filtered %}No customers match.{% else %}No customer details yet. Upload Petpooja <strong>Order Report</strong> exports under Sales; orders billed with a customer name or phone show up here.{% endif %}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+<p class="muted" style="font-size:.85rem">Only orders where a name or phone was entered at billing appear here; cancelled orders aren't counted. The CSV contains personal phone numbers, so keep the file private.</p>
+{% endblock %}

@@ -48,8 +48,8 @@ PETPOOJA_HEADER = [
 ]
 
 
-def pp_row(no, typ, items, amt, disc, tax, rnd, total, pay, status, created, desc=None):
-    return [no, None, typ, "Fine Dine", None, None, None, None, None, None, items, amt, disc, 0.0, 0.0,
+def pp_row(no, typ, items, amt, disc, tax, rnd, total, pay, status, created, desc=None, name=None, phone=None):
+    return [no, None, typ, "Fine Dine", name, phone, None, None, None, None, items, amt, disc, 0.0, 0.0,
             tax, rnd, total, pay, desc, status, created, None]
 
 
@@ -63,15 +63,18 @@ PETPOOJA = [
     ["Restaurant Address:", "Knowledge Park 2"],
     [],
     PETPOOJA_HEADER,
-    pp_row(1186, "Dine In (T1)", "Margherita Pizza", 395.0, 0.0, 19.76, 0.24, 415.0, "UPI", "Printed", "18 Oct 2026 18:05:04"),
+    pp_row(1186, "Dine In (T1)", "Margherita Pizza", 395.0, 0.0, 19.76, 0.24, 415.0, "UPI", "Printed", "18 Oct 2026 18:05:04",
+           name="Asha", phone=9000000001.0),
     pp_row(1184, "Dine In (T3)", "Mushroom Sandwich, Paneer Bowl", 1335.0, 267.0, 53.4, -0.4, 1121.0, "UPI", "Printed", "18 Oct 2026 16:49:49"),
     pp_row(1166, "Dine In (T2)", "Pesto Pizza", 1025.0, 0.0, 51.26, -0.26, 0.0, "Part Payment", "Printed",
            "17 Oct 2026 18:40:33", "Total : 1076.00"),
     pp_split(1166, 76, "UPI"),
     pp_split(1166, 1000, "Cash"),
     pp_split(1166, 0, "Not Paid"),
-    pp_row(1156, "Dine In (T1)", "Garden Veggie Pizza", 875.0, 0.0, 43.76, 0.24, 919.0, "UPI", "Cancelled", "17 Oct 2026 15:34:47"),
-    pp_row(1150, "Dine In (T4)", "Chicken Trio", 1150.0, 0.0, 57.5, 0.5, 1200.0, "Card", "Printed", "17 Oct 2026 12:32:16"),
+    pp_row(1156, "Dine In (T1)", "Garden Veggie Pizza", 875.0, 0.0, 43.76, 0.24, 919.0, "UPI", "Cancelled", "17 Oct 2026 15:34:47",
+           name="Ravi", phone="09000000002"),
+    pp_row(1150, "Dine In (T4)", "Chicken Trio", 1150.0, 0.0, 57.5, 0.5, 1200.0, "Card", "Printed", "17 Oct 2026 12:32:16",
+           name="asha k", phone="+91 90000-00001"),
 ]
 
 
@@ -158,3 +161,33 @@ class ImporterTests(TestCase):
         self.assertEqual(r.status_code, 302)
         r = self.client.get(r["Location"])
         self.assertContains(r, "₹2,298")  # total sales tile (rounded)
+
+
+class CustomerTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("owner")
+        self.client.force_login(self.user)
+
+    def test_phone_numbers_are_cleaned(self):
+        from sales.importer import clean_phone
+
+        self.assertEqual(clean_phone(9876543210.0), "9876543210")
+        self.assertEqual(clean_phone("+91 98765-43210"), "9876543210")
+        self.assertEqual(clean_phone("09876543210"), "9876543210")
+        self.assertEqual(clean_phone("-"), "")
+
+    def test_customer_list_groups_by_phone_and_downloads(self):
+        import_file(xlsx(PETPOOJA, "Order_Listing.xlsx"), self.user)
+        o = SaleOrder.objects.get(invoice_no="1186")
+        self.assertEqual((o.customer_name, o.customer_phone), ("Asha", "9000000001"))
+        r = self.client.get("/sales/customers/")
+        rows = r.context["customers"]
+        self.assertEqual(len(rows), 1)  # Ravi's only order was cancelled
+        asha = rows[0]
+        self.assertEqual((asha["name"], asha["phone"], asha["orders"], asha["spent"]),
+                         ("Asha", "9000000001", 2, Decimal("1615")))  # latest name entered wins
+        self.assertEqual(r.context["orders_with_customer"], 2)
+        self.assertEqual(self.client.get("/sales/customers/?q=0000001").context["customers"], rows)
+        self.assertEqual(self.client.get("/sales/customers/?q=nobody").context["customers"], [])
+        csv_text = self.client.get("/sales/customers/?format=csv").content.decode()
+        self.assertEqual(csv_text.splitlines()[1], "Asha,9000000001,2,1615.00,2026-10-17,2026-10-18")
