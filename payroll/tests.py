@@ -30,7 +30,7 @@ class SalaryCostTests(TestCase):
         self.b.left_on = date(2026, 8, 31)
         self.b.save()
         c = salary_cost(date(2026, 9, 1), date(2026, 12, 31), as_of=date(2026, 10, 18))
-        self.assertEqual(c["total"], Decimal("47419.35"))  # chef only: Sep 30000 + 18/31 of Oct
+        self.assertEqual(c["total"], Decimal("48000"))  # chef only: Sep 30000 + 18/30 of Oct
 
     def test_advance_alone_does_not_settle_the_month(self):
         SalaryPayment.objects.create(staff=self.b, month=date(2026, 10, 1), kind="advance", amount=3000)
@@ -41,9 +41,9 @@ class SalaryCostTests(TestCase):
     def test_current_month_only_counts_days_worked(self):
         SalaryPayment.objects.create(staff=self.b, month=date(2026, 10, 1), kind="advance", amount=3000)
         c = salary_cost(date(2026, 10, 1), date(2026, 10, 31), as_of=date(2026, 10, 18))
-        # chef 30000 x 18/31 = 17419.35; helper 12000 x 18/31 = 6967.74, of which 3000 already paid
+        # chef 30000 x 18/30 = 18000; helper 12000 x 18/30 = 7200, of which 3000 already paid
         self.assertEqual(c["actual"], Decimal("3000"))
-        self.assertEqual(c["total"], Decimal("24387.10"))
+        self.assertEqual(c["total"], Decimal("25200"))
 
     def test_no_estimates_before_tracking_started(self):
         c = salary_cost(date(2026, 4, 1), date(2026, 9, 30), as_of=date(2026, 10, 18), estimate_from=date(2026, 8, 20))
@@ -103,3 +103,37 @@ class LeaveTests(TestCase):
         self.assertContains(r, "Leave history")
         self.client.post(f"/staff/leave/{lv.pk}/delete/")
         self.assertFalse(Leave.objects.exists())
+
+
+class ProRataTests(TestCase):
+    """A joining or leaving month is paid for the days worked, out of a fixed 30-day month."""
+
+    def setUp(self):
+        self.client.force_login(get_user_model().objects.create_user("owner"))
+        self.new = Staff.objects.create(name="New Cook", monthly_salary=16000, joined_on=date(2026, 10, 16))
+
+    def test_days_worked(self):
+        s = self.new
+        self.assertEqual((s.days_worked(date(2026, 10, 1)), s.salary_for(date(2026, 10, 1))), (15, Decimal("8000")))
+        self.assertEqual((s.days_worked(date(2026, 11, 1)), s.salary_for(date(2026, 11, 1))), (30, Decimal("16000")))
+        self.assertEqual(s.days_worked(date(2026, 9, 1)), 0)  # before joining
+        self.assertEqual(s.days_worked(date(2026, 10, 1), until=date(2026, 10, 20)), 5)
+        s.joined_on = date(2026, 10, 31)
+        self.assertEqual(s.days_worked(date(2026, 10, 1)), 1)  # the 31st counts as the 30th
+        s.joined_on = date(2027, 2, 16)
+        self.assertEqual(s.days_worked(date(2027, 2, 1)), 15)  # end of February counts as the 30th
+        s.joined_on, s.left_on = date(2026, 1, 1), date(2026, 12, 10)
+        self.assertEqual((s.days_worked(date(2026, 12, 1)), s.salary_for(date(2026, 12, 1))), (10, Decimal("5333")))
+
+    def test_staff_page_and_pay_all_use_the_pro_rated_salary(self):
+        SalaryPayment.objects.create(staff=self.new, month=date(2026, 10, 1), kind="advance", amount=2000)
+        r = self.client.get("/staff/?month=2026-10")
+        row = next(x for x in r.context["rows"] if x["staff"] == self.new)
+        self.assertEqual((row["due"], row["days"], row["balance"]), (Decimal("8000"), 15, Decimal("6000")))
+        self.assertContains(r, "15 of 30 days")
+        self.client.post("/staff/pay/all/", {"month": "2026-10-01"})
+        self.assertEqual(SalaryPayment.objects.get(kind="salary").amount, Decimal("6000"))
+
+    def test_pnl_estimate_starts_from_joining(self):
+        c = salary_cost(date(2026, 10, 1), date(2026, 10, 31), as_of=date(2026, 11, 5))
+        self.assertEqual(c["total"], Decimal("8000"))

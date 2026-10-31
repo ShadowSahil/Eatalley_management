@@ -43,15 +43,18 @@ def index(request):
             continue
         got = paid.get(s.id, {})
         total_paid = sum(got.values(), ZERO)
+        due = s.salary_for(month)
         rows.append({
             "staff": s,
+            "due": due,
+            "days": s.days_worked(month),
             "leave_days": off.get(s.id, ZERO),
             "over_allowance": max(off.get(s.id, ZERO) - s.leave_allowance, ZERO),
             "salary_paid": got.get("salary", ZERO),
             "advance": got.get("advance", ZERO),
             "bonus": got.get("bonus", ZERO),
             "total_paid": total_paid,
-            "balance": max(s.monthly_salary - got.get("salary", ZERO) - got.get("advance", ZERO), ZERO),
+            "balance": max(due - got.get("salary", ZERO) - got.get("advance", ZERO), ZERO),
         })
 
     return render(request, "payroll/index.html", {
@@ -61,7 +64,7 @@ def index(request):
         "rows": rows,
         "payments": payments,
         "total_paid": payments.aggregate(v=Sum("amount"))["v"] or ZERO,
-        "total_salary": sum((r["staff"].monthly_salary for r in rows if r["staff"].is_active), ZERO),
+        "total_salary": sum((r["due"] for r in rows if r["staff"].is_active), ZERO),
         "total_balance": sum((r["balance"] for r in rows), ZERO),
         "staff_form": StaffForm(prefix="staff"),
         "leaves": Leave.objects.filter(start__lte=m_end, end__gte=month).select_related("staff").order_by("start"),
@@ -146,7 +149,7 @@ def pay_all(request):
         if not s.employed_during(month, m_end):
             continue
         done = SalaryPayment.objects.filter(staff=s, month=month, kind__in=["salary", "advance"]).aggregate(v=Sum("amount"))["v"] or ZERO
-        balance = s.monthly_salary - done
+        balance = s.salary_for(month) - done
         if balance > 0:
             SalaryPayment.objects.create(
                 staff=s, month=month, kind="salary", amount=balance, paid_on=today(),

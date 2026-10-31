@@ -19,7 +19,7 @@
 
 <div class="stats">
   <div class="stat hero"><div class="label">Paid for {{ month|date:"M Y" }}</div><div class="value">{{ total_paid|inr }}</div><div class="hint">salary, advances &amp; bonus</div></div>
-  <div class="stat"><div class="label">Monthly salary bill</div><div class="value">{{ total_salary|inr }}</div><div class="hint">active staff</div></div>
+  <div class="stat"><div class="label">Salary for {{ month|date:"M Y" }}</div><div class="value">{{ total_salary|inr }}</div><div class="hint">active staff, pro-rated for joining/leaving</div></div>
   <div class="stat"><div class="label">Still to pay</div><div class="value {% if total_balance %}neg{% endif %}">{{ total_balance|inr }}</div>
     {% if total_balance %}<form method="post" action="{% url 'payroll:pay_all' %}" data-confirm="Record the remaining salary for everyone as paid today?">{% csrf_token %}<input type="hidden" name="month" value="{{ month|date:'Y-m-d' }}"><button class="btn-link" type="submit">Mark all as paid</button></form>{% endif %}
   </div>
@@ -28,12 +28,12 @@
 <div class="card">
   <h2>Staff</h2>
   <div class="table-wrap"><table>
-    <thead><tr><th>Name</th><th class="num">Monthly salary</th><th class="num">Advance</th><th class="num">Salary paid</th><th class="num hide-sm">Bonus</th><th class="num">Leaves</th><th class="num">Balance</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th class="num">Salary for {{ month|date:"M" }}</th><th class="num">Advance</th><th class="num">Salary paid</th><th class="num hide-sm">Bonus</th><th class="num">Leaves</th><th class="num">Balance</th><th></th></tr></thead>
     <tbody>
     {% for r in rows %}
       <tr{% if not r.staff.is_active %} style="opacity:.55"{% endif %}>
         <td><a href="{% url 'payroll:staff_edit' r.staff.pk %}">{{ r.staff.name }}</a><div class="meta">{{ r.staff.role|default:"" }}{% if not r.staff.is_active %} · left{% endif %}</div></td>
-        <td class="num">{{ r.staff.monthly_salary|inr }}</td>
+        <td class="num">{{ r.due|inr }}{% if r.days < 30 %}<div class="meta">{{ r.days }} of 30 days · {{ r.staff.monthly_salary|inr }}/month</div>{% endif %}</td>
         <td class="num">{% if r.advance %}{{ r.advance|inr }}{% else %}<span class="muted">—</span>{% endif %}</td>
         <td class="num">{% if r.salary_paid %}{{ r.salary_paid|inr }}{% else %}<span class="muted">—</span>{% endif %}</td>
         <td class="num hide-sm">{% if r.bonus %}{{ r.bonus|inr }}{% else %}<span class="muted">—</span>{% endif %}</td>
